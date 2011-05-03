@@ -1,0 +1,8 @@
+This directory holds the KINGFISH spectroscopy pipeline.
+
+It currently has two parts, but may have more in the future.
+
+phaseA
+phaseB
+
+These are python scripts that can be run in HIPE.
