@@ -4,7 +4,7 @@
 #       BETA version tested in HIPE 7.0.815    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Apr 14, 2011                 #
+#                 May 13, 2011                 #
 ################################################
 
 # A list of the Phase A pools that are to be processed
@@ -152,7 +152,7 @@ if verbose:
 		#        oversample=2, upsample>=1, which corresponds to the native resolution of the instrument
 		#    - For line scan, deep range scans or Nyquist sampled range scans with repetition factor > 1, 
 		#        oversampling > 2 is made possible by the high degree of redundancy provided by the observation
-		waveGrid=wavelengthGrid(sCubesOn.refs[0].product, oversample=2, upsample=2, calTree = calTree)
+		waveGrid=wavelengthGrid(sCubesOn.refs[0].product, oversample=2, upsample=1, calTree = calTree)
 		sCubesOn  = activateMasks(sCubesOn, String1d(["GLITCH","UNCLEANCHOP","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS"]), exclusive = True)
 		sCubesOff = activateMasks(sCubesOff, String1d(["GLITCH","UNCLEANCHOP","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS"]), exclusive = True)
 		sCubesOn  = specFlagOutliers(sCubesOn, waveGrid, nSigma=3, nIter=4,saveStats=1)
@@ -285,9 +285,9 @@ print "CONGRATULATIONS! Phase B complete!"
 
 ################################################
 #                                              #
-#    PHASE A: KINGFISH Spectroscopic Pipeline  #
+#    PHASE B: KINGFISH Spectroscopic Pipeline  #
 #       BETA version tested in HIPE 7.0.815    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Apr 14, 2011                 #
+#                 May 13, 2011                 #
 ################################################
