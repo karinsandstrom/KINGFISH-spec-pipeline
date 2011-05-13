@@ -14,8 +14,7 @@ phasealist = simpleAsciiTableReader(file = "/Users/kcroxall/phaseA.dat") #UPDATE
 ndim = phasealist[0].data.dimensions[0]
 
 from herschel.pacs.signal import MaskViewer
-verbose = 1
-n=1
+verbose = 0
 for n in range(0,ndim):
 	# ------------------------------------------------------------------------------
 	#         Processing      Level 1 -> Level 2
@@ -90,8 +89,8 @@ for n in range(0,ndim):
 							wave.append(Dotcloudmod.refs[rasti].product["wave"].data[j+i*16,qq,q])
 							reset.append(Dotcloudmod.refs[rasti].product["Status"]["RESETINDEX"].data[j+i*16])
 							flux.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-						ind = flux.where((wave<linecent-0.6).or(wave>linecent+0.6))
-						myModel = PolynomialModel(15)	
+						ind = flux.where((wave<linecent-0.2).or(wave>linecent+0.2))
+						myModel = PolynomialModel(4)	
 						myFitter = Fitter(reset[ind], myModel)
 						ind2 = flux.where(IS_NAN(flux))
 						flux2=flux
@@ -117,8 +116,8 @@ for n in range(0,ndim):
 							wave.append(Dotcloudmod.refs[rasti].product["wave"].data[j+i*16,qq,q])
 							reset.append(Dotcloudmod.refs[rasti].product["Status"]["RESETINDEX"].data[j+i*16])
 							flux.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-						ind = flux.where((wave<157.5).or(wave>158.2))
-						myModel = PolynomialModel(15)	
+						ind = flux.where((wave<linecent-0.001).or(wave>linecent+0.001))
+						myModel = PolynomialModel(4)	
 						myFitter = Fitter(reset[ind], myModel)
 						ind2 = flux.where(IS_NAN(flux))
 						flux2=flux
