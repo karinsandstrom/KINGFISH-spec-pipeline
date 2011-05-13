@@ -1,10 +1,10 @@
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#       BETA version tested in HIPE 7.0.815    #
+#            Tested in HIPE 7.0.1786           #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Mar 28, 2011                 #
+#                 May 13, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -13,15 +13,23 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v4"
-Hversion = "7.0.815"
+Pversion = "PhaseA_v6"
+Hversion = "7.0.1786"
 Cversion = "16"
 
-poollist = simpleAsciiTableReader(file = "/home/kcroxall/poolfile4.dat")         #UPDATE to the correct file location
+poollist = simpleAsciiTableReader(file = "/home/kcroxall/poolfile4.dat")     #UPDATE to the correct file location
 obsidlist = simpleAsciiTableReader(file = "/home/kcroxall/obsidfile4.dat")   #UPDATE to the correct file location
 ndim = poollist[0].data.dimensions[0]
 
 from herschel.pacs.signal import MaskViewer
+from herschel.pacs.signal import SlicedFrames
+from herschel.pacs.signal.context import *
+from herschel.pacs.spg.common import *
+from herschel.pacs.spg.spec import *
+from herschel.pacs.cal import *
+from herschel.ia.numeric import *
+from herschel.ia.jconsole import *
+from herschel.pacs.spg.pipeline import *  
 
 for n in range(0,ndim):
 	# ------------------------------------------------------------------------------
@@ -31,6 +39,7 @@ for n in range(0,ndim):
 	print obsidlist[0].data[n]
 	print n,poollist[0].data.dimensions[0]
 	useHsa = 0   #change to 1 to download....
+#	obs    = getObservation('1342214219', verbose=True, useHsa=useHsa, poolLocation=None, poolName='1342214219')
 	obs    = getObservation(obsidlist[0].data[n], verbose=True, useHsa=useHsa, poolLocation=None, poolName=str(poollist[0].data[n]))
 	if useHsa: obs = saveObservation(obs, poolLocation=None, poolName=poollist[0].data[n])
 # verbose: 0 - silent, execute the pipeline only
@@ -43,6 +52,9 @@ for n in range(0,ndim):
 	if verbose: obsSummary(obs)
 	cameraR = "red"
 	cameraB = "blue"
+	obs = checkForAnomaly70(obs)		# Check for decMec Anomaly 70 and attach the QualityInformation WHY? WHAT DOES THIS DO?
+	pacsPropagateMetaKeywords(obs,'0', obs.level0)
+	level0 = PacsContext(obs.level0)
 	calTree = getCalTree(obs=obs)
 #	calTreeb = obs.calibration 			# to use the cal files packages with the obs rather than the on machine latest cal
 	if verbose: 
@@ -50,8 +62,6 @@ for n in range(0,ndim):
 		print calTree.common
 		print calTree.spectrometer
 	
-	pacsPropagateMetaKeywords(obs,'0', obs.level0)
-	level0 = PacsContext(obs.level0)
 	slicedFramesR  = SlicedFrames(level0.fitted.getCamera(cameraR).product)
 	slicedRawRampR = level0.raw.getCamera(cameraR).product
 	slicedDmcHeadR = level0.dmc.getCamera(cameraR).product    
@@ -62,7 +72,12 @@ for n in range(0,ndim):
 	if verbose:
 		slicedSummary(slicedFramesR)
 		p0 = slicedSummaryPlot(slicedFramesR,signal=1)
-	
+#try :
+#    hp = obs.auxiliary.refs["HorizonsProduct"].product
+#except :
+#    print "WARNING : No Horizons found !"
+#    hp = None	
+
 # ------------------------------------------------------------------------------
 #        Processing      Level 0 -> Level 0.5
 # ------------------------------------------------------------------------------
@@ -86,9 +101,10 @@ for n in range(0,ndim):
 	
 	if verbose: 
 		slicedPlotPointingOnOff(slicedFramesR)
+		slicedPlotPointingOnOff(slicedFramesB)
 	
 	slicedFramesR = waveCalc(slicedFramesR, calTree=calTree)
-	slicedFramesR = specCorrectHerschelVelocity(slicedFramesR, obs.auxiliary.orbitEphemeris, obs.auxiliary.pointing, obs.auxiliary.timeCorrelation)
+	slicedFramesR = specCorrectHerschelVelocity(slicedFramesR, obs.auxiliary.orbitEphemeris, obs.auxiliary.pointing, obs.auxiliary.timeCorrelation, horizonsProduct = None)
 	slicedFramesR = findBlocks(slicedFramesR, calTree = calTree)
 	slicedFramesR = specFlagBadPixelsFrames(slicedFramesR, calTree=calTree)
 	slicedFramesR = flagChopMoveFrames(slicedFramesR, dmcHead=slicedDmcHeadR, calTree=calTree)
@@ -107,22 +123,28 @@ for n in range(0,ndim):
 	
 	rules = [SlicingRule("LineId",1),SlicingRule("RasterLineNum",1),SlicingRule("RasterColumnNum",1),SlicingRule("NoddingPosition",1),SlicingRule("NodCycleNum",1),SlicingRule("IsOutOfField",1),SlicingRule("Band",1)]
 	slicedFramesR = pacsSliceContext(slicedFramesR, slicingRules = rules, removeUndefined=1)
-	slicedFramesR = addIndexInCycle(slicedFramesR)
+	slicedFramesR = specAddGratingCycleStatus(slicedFramesR, copy = True)
 	slicedFramesB= pacsSliceContext(slicedFramesB, slicingRules = rules, removeUndefined=1)
-	slicedFramesB = addIndexInCycle(slicedFramesB)
-	
+	slicedFramesB = specAddGratingCycleStatus(slicedFramesB, copy = True)
+#	slicedFramesR = addIndexInCycle(slicedFramesR) old tasks...
+#	slicedFramesB = addIndexInCycle(slicedFramesB)
 	if verbose:
 		slicedSummary(slicedFramesR)
 		p2 = slicedSummaryPlot(slicedFramesR,signal=0)
-	
+		p2 = slicedSummaryPlot(slicedFramesB,signal=0)
 	addSliceMetaData(slicedFramesR)
 	addSliceMetaData(slicedFramesB)
+#	slicedDmcHeadR = pacsSliceContextByReference(slicedDmcHeadR,slicedFramesR)     ??
+#	slicedDmcHeadB = pacsSliceContextByReference(slicedDmcHeadB,slicedFramesB)     ??
 	if updateObservationContext:
 	  obs = updateObservation(obs, cameraR, "0.5", slicedFrames=slicedFramesR)
 	  obs = updateObservation(obs, cameraB, "0.5", slicedFrames=slicedFramesB)
+#	slicedFramesR = cleanupSlicedFrames(slicedFramesR)
+#	slicedFramesB = cleanupSlicedFrames(slicedFramesB)
 	print "Delete superfluous products to ease RAM usage"
 	del(slicedRawRampR,slicedRawRampB,useHsa,slicedDmcHeadR,slicedDmcHeadB)
 	System.gc()
+	
 # ------------------------------------------------------------------------------
 #         Processing      Level 0.5 -> Level 1
 # ------------------------------------------------------------------------------
@@ -138,7 +160,7 @@ for n in range(0,ndim):
 		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): del(slicedFramesB2.refs[qc]) 
 		qc = qc+1
 		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): qc=qc-1
-	
+
 	
 	if verbose:slicedSummary(slicedFramesB2)
 	
@@ -149,6 +171,36 @@ for n in range(0,ndim):
 		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFramesR2.refs[qc]) 
 		qc = qc+1
 		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
+
+	
+##############  psuedo BLM
+#OI
+#for qq in range (1,slicedFramesB2.getRefs().size()):
+#	for i in range (0,18):
+#		for j in range (0,25):
+#			reset = slicedFramesB2.refs[qq].product["Status"]["RESETINDEX"].data
+#			gpr = slicedFramesB2.refs[qq].product["Status"]["GPR"].data
+#			flux = slicedFramesB2.refs[qq].product["Signal"].data
+#			ind = gpr.where(((gpr < 400000).and(gpr > 397740)).or((gpr > 387200).and(gpr < 389180)))
+#			flux[i,j,ind] = float('NaN')
+#	slicedFramesB2.refs[qq].product["Signal"].data = flux
+#
+#p1=PlotXY(slicedFramesB2.refs[3].product["Wave"].data[8,8,:],slicedFramesB2.refs[qq].product["Signal"].data[8,8,:])
+##CII,NII122
+#p1=PlotXY(slicedFramesR2.refs[2].product["Wave"].data[8,8,:],slicedFramesR2.refs[2].product["Signal"].data[8,8,:],line=0)
+#
+#for qq in range (1,slicedFramesR2.getRefs().size()):
+#	for i in range (0,18):
+#		for j in range (0,25):
+#			reset = slicedFramesR2.refs[qq].product["Status"]["RESETINDEX"].data
+#			gpr = slicedFramesR2.refs[qq].product["Status"]["GPR"].data
+#			flux = slicedFramesR2.refs[qq].product["Signal"].data
+#			ind = gpr.where(((gpr < 937400).and(gpr > 934600)).or((gpr > 919400).and(gpr < 922200)).or((gpr < 679000).and(gpr > 676000)).or((gpr < 663800).and(gpr > 661000)))
+#			flux[i,j,ind] = float('NaN')
+#	slicedFramesR2.refs[qq].product["Signal"].data = flux
+#
+#p1[1]=LayerXY(slicedFramesR2.refs[2].product["Wave"].data[8,8,:],slicedFramesR2.refs[2].product["Signal"].data[8,8,:],line=0)
+##############  END psuedo BLM
 	
 	if verbose:slicedSummary(slicedFramesR2)
 	del(slicedFramesR,slicedFramesB)
@@ -168,17 +220,30 @@ for n in range(0,ndim):
 		MaskViewer(slicedFramesR2.get(slice))
 	
 	slicedFramesR2 = activateMasks(slicedFramesR2, slicedFramesR2.get(0).getMaskTypes())
-	slicedFramesR2 = convertSignal2StandardCap(slicedFramesR2, calTree=calTree)
-	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
-	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
-	slicedFramesR2 = rsrfCal(slicedFramesR2, calTree=calTree)
-	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
+	slicedFramesB2 = activateMasks(slicedFramesB2, slicedFramesB2.get(0).getMaskTypes())
+	slicedFramesR2 = addQualityInformation(slicedFramesR2)
+	slicedFramesB2 = addQualityInformation(slicedFramesB2)
 	
+	slicedFramesR2 = activateMasks(slicedFramesR2, slicedFramesR2.get(0).getMaskTypes())
+	slicedFramesR2 = convertSignal2StandardCap(slicedFramesR2, calTree=calTree)
 	slicedFramesB2 = activateMasks(slicedFramesB2, slicedFramesB2.get(0).getMaskTypes())
 	slicedFramesB2 = convertSignal2StandardCap(slicedFramesB2, calTree=calTree)
-	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
-	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
+	
+	calFrameR2 = activateMasks(slicedFramesR2.getCal(0), slicedFramesR2.getCal(0).getMaskTypes())
+	csResponseAndDarkR2 = specDiffCs(calFrameR2, calTree = calTree)
+	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree = calTree, scical = "sci", keepall = False)
+	calFrameB2 = activateMasks(slicedFramesB2.getCal(0), slicedFramesB2.getCal(0).getMaskTypes())
+	csResponseAndDarkB2 = specDiffCs(calFrameB2, calTree = calTree)
+	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree = calTree, scical = "sci", keepall = False)
+	
+#	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
+#	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
+#	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
+#	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
+	
+	slicedFramesR2 = rsrfCal(slicedFramesR2, calTree=calTree)
 	slicedFramesB2 = rsrfCal(slicedFramesB2, calTree=calTree)
+	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
 	slicedFramesB2 = specRespCal(slicedFramesB2, calTree=calTree)
 	if verbose:
 		slicedSummary(slicedFramesR2)
@@ -186,48 +251,40 @@ for n in range(0,ndim):
 		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
 		slice = 1
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
+	#p1=PlotXY(slicedFramesR2.refs[1].product["Status"]["RESETINDEX"].data,slicedFramesR2.refs[1].product["Signal"].data[8,15,:],line=0, symbol = 14, symbolSize = 1)
+	slicedFramesR3 = getSlicedCopy(slicedFramesR2)
+#	slicedFramesR3 = specLongTermTransient(slicedFramesR3)
+	#p1=PlotXY(slicedFramesR3.refs[1].product["Status"]["RESETINDEX"].data,slicedFramesR3.refs[1].product["Signal"].data[8,15,:],line=0, symbol = 14, symbolSize = 1)
+	slicedFramesB3 = getSlicedCopy(slicedFramesB2)
+#	slicedFramesB3 = specLongTermTransient(slicedFramesB3)
 	
-	slicedFramesR2 = specFlatFieldRange(slicedFramesR2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
-	slicedFramesB2 = specFlatFieldRange(slicedFramesB2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
-	nslicesR = len(slicedFramesR2.refs)
-	raR = Double1d(nslicesR)
-	decR = Double1d(nslicesR)
-	
-	nslicesB = len(slicedFramesB2.refs)
-	raB = Double1d(nslicesB)
-	decB = Double1d(nslicesB)
-	
-	for i in range(nslicesR):
-	    frame = slicedFramesR2.refs[i].product
-	    raR[i]=MEDIAN(frame.ra[8,12,:])
-	    decR[i]=MEDIAN(frame.dec[8,12,:])
-	
-	for i in range(nslicesB):
-	    frame = slicedFramesB2.refs[i].product
-	    raB[i]=MEDIAN(frame.ra[8,12,:])
-	    decB[i]=MEDIAN(frame.dec[8,12,:])
-	
-	
+#	slicedFramesR3 = specFlatFieldRange(slicedFramesR3,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
+#	slicedFramesB3 = specFlatFieldRange(slicedFramesB3,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
+#####################
+#   We could save here before projecting... Apply Off subtraction here?
+#   Pros: simpler extraction of every pixel
+#####################
 	print "Frames -> Cubes"
-	if verbose: PlotXY(raR)
-	if verbose: PlotXY(decR)
-	slicedCubesR = specFrames2PacsCube(slicedFramesR2)
-	slicedCubesB = specFrames2PacsCube(slicedFramesB2)
+	slicedCubesR = specFrames2PacsCube(slicedFramesR3)
+	slicedCubesB = specFrames2PacsCube(slicedFramesB3)
 	slicedCubesR.meta["Pversion"]=StringParameter(Pversion)
 	slicedCubesR.meta["Hversion"]=StringParameter(Hversion)
 	slicedCubesR.meta["Cversion"]=StringParameter(Cversion)
 	slicedCubesB.meta["Pversion"]=StringParameter(Pversion)
 	slicedCubesB.meta["Hversion"]=StringParameter(Hversion)
 	slicedCubesB.meta["Cversion"]=StringParameter(Cversion)
-	nameR=str(poollist[0].data[n])+"_"+cameraR+"_pipe_PhaseA" 
-	nameB=str(poollist[0].data[n])+"_"+cameraB+"_pipe_PhaseA" 
-	
+	nameR='n1266_noBLMsim_red_phaseA'
+	nameB='n1266_noBLMsim_blue_phaseA'
+#	nameR=str(obsidlist[0].data[n])+"_"+cameraR+"_pipe6_PhaseA" 
+#	nameB=str(obsidlist[0].data[n])+"_"+cameraB+"_pipe6_PhaseA" 
 	saveSlicedCopy(slicedCubesR,nameR)
 	saveSlicedCopy(slicedCubesB,nameB)
+#	saveSlicedCopy(slicedFramesR3,nameR)
+#	saveSlicedCopy(slicedFramesB3,nameB)
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
-	del(decB,decR,gpr,frame,level0,nslice,nslicesB,nslicesR,qc,qq,raB,raR,slicedFramesR2,slicedFramesB2)
+	del(gpr,level0,nslice,qc,qq,slicedFramesR2,slicedFramesB2,slicedFramesR3,slicedFramesB3,slicedCubesR,slicedCubesB,nameR,nameB,flux,i,j,reset,slicedSpecFlagOutliers,slicedSpecWaveRebin,slicedWavelengthGrid,calFrameB2,cakFrameR2,csResponseAndDarkB2,csResponseAndDarkR2)
 		
 	# End Phase A
 
@@ -240,9 +297,9 @@ print "CONGRATULATIONS! Phase A complete!"
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#       BETA version tested in HIPE 7.0.815    #
+#            Tested in HIPE 7.0.1786           #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Mar 28, 2011                 #
+#                 May 13, 2011                 #
 ################################################
 
