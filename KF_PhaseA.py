@@ -180,10 +180,10 @@ for n in range(0,ndim):
 	slicedFramesR2 = rsrfCal(slicedFramesR2, calTree=calTree)
 	slicedFramesB2 = rsrfCal(slicedFramesB2, calTree=calTree)
 	
-	slicedFramesR2 = specRespCal(slicedFramesR2, csResponseAndDark=csResponseAndDarkR2)
-	slicedFramesB2 = specRespCal(slicedFramesB2, csResponseAndDark=csResponseAndDarkB2)
-#	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
-#	slicedFramesB2 = specRespCal(slicedFramesB2, calTree=calTree)
+#	slicedFramesR2 = specRespCal(slicedFramesR2, csResponseAndDark=csResponseAndDarkR2)
+#	slicedFramesB2 = specRespCal(slicedFramesB2, csResponseAndDark=csResponseAndDarkB2)
+	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
+	slicedFramesB2 = specRespCal(slicedFramesB2, calTree=calTree)
 	
 	print "NHSC transient correction"
 	if verbose:
