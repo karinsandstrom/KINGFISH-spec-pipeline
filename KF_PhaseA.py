@@ -1,10 +1,10 @@
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2313    #
+#      BETA version tested in HIPE 8.0.1876    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 15, 2011                 #
+#                Sept 16, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -13,8 +13,8 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v0.3"
-Hversion = "8.0.2313"
+Pversion = "PhaseA_v1.0"
+Hversion = "8.0.1876"
 Cversion = "26"
 
 poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
@@ -30,7 +30,7 @@ for n in range(0,ndim):
 	print poollist[0].data[n]
 	print obsidlist[0].data[n]
 	print n,poollist[0].data.dimensions[0]
-	obs    = getObservation(obsidlist[0].data[n], verbose=True, useHsa=useHsa, poolLocation=None, poolName=str(poollist[0].data[n]))
+	obs    = getObservation(obsidlist[0].data[n], verbose=True, useHsa=0, poolLocation=None, poolName=str(poollist[0].data[n]))
 # verbose: 0 - silent, execute the pipeline only
 #	   1 - will trigger diagnostic output on the screen, plots, and displays
 	verbose = 1
@@ -43,9 +43,11 @@ for n in range(0,ndim):
 		print calTree
 		print calTree.common
 		print calTree.spectrometer
+	
 	obs = checkForAnomaly70(obs)
 	pacsPropagateMetaKeywords(obs,'0', obs.level0)
 	level0 = PacsContext(obs.level0)
+	
 	slicedFramesR  = SlicedFrames(level0.fitted.getCamera(cameraR).product)		#	scientific data
 	slicedRawRampR = level0.raw.getCamera(cameraR).product				#	raw data for one pixel
 	slicedDmcHeadR = level0.dmc.getCamera(cameraR).product    			#	the mechanisms' status information
@@ -53,10 +55,12 @@ for n in range(0,ndim):
 	slicedRawRampB = level0.raw.getCamera(cameraB).product
 	slicedDmcHeadB = level0.dmc.getCamera(cameraB).product    
 	galname = slicedFramesR.meta["object"].string
+	
 	if verbose:
 		slicedSummary(slicedFramesR)			# Overview of the basic structure of the data
 		slicedSummary(slicedFramesB)
 		p0 = slicedSummaryPlot(slicedFramesR,signal=1)	# Grating position & raw signal of central pixel
+	
 # ------------------------------------------------------------------------------
 #        Processing      Level 0 -> Level 0.5
 # ------------------------------------------------------------------------------
@@ -77,7 +81,7 @@ for n in range(0,ndim):
 	slicedFramesB = specExtendStatus(slicedFramesB, calTree=calTree)
 	slicedFramesB = convertChopper2Angle(slicedFramesB, calTree=calTree)
 	slicedFramesB = specAssignRaDec(slicedFramesB, calTree=calTree)
-		
+	
 	if verbose: 					# show footprints for selected raster position(s)
 		slicedPlotPointingOnOff(slicedFramesR)
 	
@@ -167,14 +171,20 @@ for n in range(0,ndim):
 	slicedFramesB2 = addQualityInformation(slicedFramesB2)
 	slicedFramesB2 = convertSignal2StandardCap(slicedFramesB2, calTree=calTree)
 	
-	calBlockR2 = selectSlices(slicedFramesR2,scical="cal").get(0)
-	csResponseAndDarkR2 = specDiffCs(calBlockR2, calTree = calTree)
-	calBlockB2 = selectSlices(slicedFramesB2,scical="cal").get(0)
-	csResponseAndDarkB2 = specDiffCs(calBlockB2, calTree = calTree)
-	
-	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
+#	calBlockR2 = selectSlices(slicedFramesR2,scical="cal").get(0)
+#	csResponseAndDarkR2 = specDiffCs(calBlockR2, calTree = calTree)
+#	calBlockB2 = selectSlices(slicedFramesB2,scical="cal").get(0)
+#	csResponseAndDarkB2 = specDiffCs(calBlockB2, calTree = calTree)
+#	
+#	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
+#	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
+#	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
+#	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
+	calFrameR2 = activateMasks(slicedFramesR2.getCal(0), slicedFramesR2.getCal(0).getMaskTypes())
+	csResponseAndDarkR2 = specDiffCs(calFrameR2, calTree = calTree)
 	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
-	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
+	calFrameB2 = activateMasks(slicedFramesB2.getCal(0), slicedFramesB2.getCal(0).getMaskTypes())
+	csResponseAndDarkB2 = specDiffCs(calFrameB2, calTree = calTree)
 	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
 	
 	slicedFramesR2 = rsrfCal(slicedFramesR2, calTree=calTree)
@@ -185,45 +195,50 @@ for n in range(0,ndim):
 	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
 	slicedFramesB2 = specRespCal(slicedFramesB2, calTree=calTree)
 	
+	slicedFramesR = getSlicedCopy(slicedFramesR2)
+	slicedFramesB = getSlicedCopy(slicedFramesB2)
+	
 	print "NHSC transient correction"
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		# Single pixel, signal vs wavelength (not yet differential at this point)
-		# plot this for slice 0 - should be the first on (nod B)
-		# plot this for slice 1 - should be the first off (nod A)
-		# The off position should be void of spectral lines
-		slice = 1
+		slice = 2
 		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 0
+		slice = 1
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
+	
 	slicedFramesR2 = specLongTermTransient(slicedFramesR2)
+	
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 1
+		slice = 2
 		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 0
+		slice = 1
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		# Single pixel, signal vs wavelength (not yet differential at this point)
-		# plot this for slice 0 - should be the first on (nod B)
-		# plot this for slice 1 - should be the first off (nod A)
-		# The off position should be void of spectral lines
-		slice = 1
+		slice = 2
 		p5 = plotSignalBasic(slicedFramesB2, slice=slice)
-		slice = 0
+		slice = 1
 		p5off = plotSignalBasic(slicedFramesB2, slice=slice)
+	
 	slicedFramesB2 = specLongTermTransient(slicedFramesB2)
+	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		slice = 1
+		slice = 2
 		p5ton = plotSignalBasic(slicedFramesB2, slice=slice)
-		slice = 0
+		slice = 1
 		p5toff = plotSignalBasic(slicedFramesB2, slice=slice)
 	print "END NHSC transient correction"
+	slicedFramesR = selectSlices(slicedFramesR,scical="sci")
+	slicedFramesB = selectSlices(slicedFramesB,scical="sci")
+	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
+	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
 	
 	print "Refine the spectral flatfield"
+	slicedFramesR = specFlatFieldRange(slicedFramesR,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
+	slicedFramesB = specFlatFieldRange(slicedFramesB,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	slicedFramesR2 = specFlatFieldRange(slicedFramesR2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	slicedFramesB2 = specFlatFieldRange(slicedFramesB2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	
@@ -233,8 +248,10 @@ for n in range(0,ndim):
 #####################
 	
 	print "Frames -> Cubes"
-	slicedCubesR = specFrames2PacsCube(slicedFramesR2)
-	slicedCubesB = specFrames2PacsCube(slicedFramesB2)
+	slicedCubesR = specFrames2PacsCube(slicedFramesR)
+	slicedCubesB = specFrames2PacsCube(slicedFramesB)
+	slicedCubesR2 = specFrames2PacsCube(slicedFramesR2)
+	slicedCubesB2 = specFrames2PacsCube(slicedFramesB2)
 	
 	slicedCubesR.meta["Pversion"]=StringParameter(Pversion)
 	slicedCubesR.meta["Hversion"]=StringParameter(Hversion)
@@ -242,10 +259,20 @@ for n in range(0,ndim):
 	slicedCubesB.meta["Pversion"]=StringParameter(Pversion)
 	slicedCubesB.meta["Hversion"]=StringParameter(Hversion)
 	slicedCubesB.meta["Cversion"]=StringParameter(Cversion)
+	slicedCubesR2.meta["Pversion"]=StringParameter(Pversion)
+	slicedCubesR2.meta["Hversion"]=StringParameter(Hversion)
+	slicedCubesR2.meta["Cversion"]=StringParameter(Cversion)
+	slicedCubesB2.meta["Pversion"]=StringParameter(Pversion)
+	slicedCubesB2.meta["Hversion"]=StringParameter(Hversion)
+	slicedCubesB2.meta["Cversion"]=StringParameter(Cversion)
 	nameR=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+Hversion+"_"+Pversion
 	nameB=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+Hversion+"_"+Pversion
+	nameR2=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+Hversion+"_"+Pversion+"_Dtrans"
+	nameB2=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+Hversion+"_"+Pversion+"_Dtrans"
 	saveSlicedCopy(slicedCubesR,nameR)
 	saveSlicedCopy(slicedCubesB,nameB)
+	saveSlicedCopy(slicedCubesR2,nameR2)
+	saveSlicedCopy(slicedCubesB2,nameB2)
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
@@ -262,9 +289,9 @@ print "CONGRATULATIONS! Phase A complete!"
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2313    #
+#      BETA version tested in HIPE 8.0.1876    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 15, 2011                 #
+#                Sept 16, 2011                 #
 ################################################
 
