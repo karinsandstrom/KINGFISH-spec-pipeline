@@ -1,10 +1,10 @@
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.1876    #
+#      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 16, 2011                 #
+#                Sept 19, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -14,7 +14,7 @@
 # or as one large data stream.
 
 Pversion = "PhaseA_v1.0"
-Hversion = "8.0.1876"
+Hversion = "8.0.2050"
 Cversion = "26"
 
 poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
@@ -99,7 +99,7 @@ for n in range(0,ndim):
 	slicedFramesB = flagGratMoveFrames(slicedFramesB, dmcHead=slicedDmcHeadB, calTree=calTree)
 	
 	print "Delete superfluous products to ease RAM usage"
-	del(slicedRawRampR,slicedRawRampB,useHsa,slicedDmcHeadR,slicedDmcHeadB,level0)
+	del(slicedRawRampR,slicedRawRampB,slicedDmcHeadR,slicedDmcHeadB,level0)
 	System.gc()
 	
 	if verbose:
@@ -124,95 +124,70 @@ for n in range(0,ndim):
 # ------------------------------------------------------------------------------
 #         Processing      Level 0.5 -> Level 1
 # ------------------------------------------------------------------------------
-	print "Level 0.5 -> Level 1"
-	#code from Kevin to trim unwanted data from red and blue frames based on gpr
+	slicedFramesR = activateMasks(slicedFramesR, String1d([" "]), exclusive = True)
+	slicedFramesR = specFlagGlitchFramesQTest(slicedFramesR, copy=1)
+	slicedFramesB = activateMasks(slicedFramesB, String1d([" "]), exclusive = True)
+	slicedFramesB = specFlagGlitchFramesQTest(slicedFramesB, copy=1)
+	if verbose:
+		slicedSummary(slicedFramesR)
+		slicedSummary(slicedFramesB)
+		p3 = slicedSummaryPlot(slicedFramesR,signal=0)
+		p3 = slicedSummaryPlot(slicedFramesB,signal=0)
+		slice = 1
+		p4 = plotSignalBasic(slicedFramesR, slice=slice)	# Single pixel, signal vs wavelength: Only unmasked datapoints are plotted
+		p4 = plotSignalBasic(slicedFramesB, slice=slice)
+		MaskViewer(slicedFramesR.get(slice))			# Inspect timeline of signals and masked signals
+		MaskViewer(slicedFramesB.get(slice))
+	
+	slicedFramesR = activateMasks(slicedFramesR, slicedFramesR.get(0).getMaskTypes())
+#OutJeff	slicedFramesR = addQualityInformation(slicedFramesR)
+	slicedFramesR = convertSignal2StandardCap(slicedFramesR, calTree=calTree)
+	slicedFramesB = activateMasks(slicedFramesB, slicedFramesB.get(0).getMaskTypes())
+	slicedFramesB = addQualityInformation(slicedFramesB)
+	slicedFramesB = convertSignal2StandardCap(slicedFramesB, calTree=calTree)
+	
+#	calBlockR = selectSlices(slicedFramesR,scical="cal").get(0)
+#	csResponseAndDarkR = specDiffCs(calBlockR, calTree = calTree)
+#	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
+#	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
+#	
+	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
+#	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
+	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
+#	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
+#OutJeff	calFrameR = activateMasks(slicedFramesR.getCal(0), slicedFramesR.getCal(0).getMaskTypes())
+#OutJeff	csResponseAndDarkR = specDiffCs(calFrameR, calTree = calTree)
+	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
+#OutJeff	calFrameB = activateMasks(slicedFramesB.getCal(0), slicedFramesB.getCal(0).getMaskTypes())
+#OutJeff	csResponseAndDarkB = specDiffCs(calFrameB, calTree = calTree)
+	slicedFramesB = specSubtractDark(slicedFramesB2, calTree=calTree)
+	
+	slicedFramesR = rsrfCal(slicedFramesR, calTree=calTree)
+	slicedFramesB = rsrfCal(slicedFramesB, calTree=calTree)
+	
+#	slicedFramesR = specRespCal(slicedFramesR, csResponseAndDark=csResponseAndDarkR)
+#	slicedFramesB = specRespCal(slicedFramesB, csResponseAndDark=csResponseAndDarkB)
+	slicedFramesR = specRespCal(slicedFramesR, calTree=calTree)
+	slicedFramesB = specRespCal(slicedFramesB, calTree=calTree)
+	
 	slicedFramesR2 = getSlicedCopy(slicedFramesR)
 	slicedFramesB2 = getSlicedCopy(slicedFramesB)
-	nslice = slicedFramesB2["MasterBlockTable"]["FramesNo"].data[slicedFramesB2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
-	qc =1 
-	for qq in range(1,nslice+1):
-		gpr = slicedFramesB.refs[qq].product["Status"]["GPR"].data[0]
-		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): del(slicedFramesB2.refs[qc]) 
-		qc = qc+1
-		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): qc=qc-1
-	
-	nslice = slicedFramesR2["MasterBlockTable"]["FramesNo"].data[slicedFramesR2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
-	qc =1 
-	for qq in range(1,nslice+1):
-		gpr = slicedFramesR.refs[qq].product["Status"]["GPR"].data[0]
-		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFramesR2.refs[qc]) 
-		qc = qc+1
-		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
-	
-	if verbose:slicedSummary(slicedFramesR2)
-	if verbose:slicedSummary(slicedFramesB2)
-	del(slicedFramesR,slicedFramesB)
-	System.gc()
-	#end Kevin section	
-	slicedFramesR2 = activateMasks(slicedFramesR2, String1d([" "]), exclusive = True)
-	slicedFramesR2 = specFlagGlitchFramesQTest(slicedFramesR2, copy=1)
-	slicedFramesB2 = activateMasks(slicedFramesB2, String1d([" "]), exclusive = True)
-	slicedFramesB2 = specFlagGlitchFramesQTest(slicedFramesB2, copy=1)
-	if verbose:
-		slicedSummary(slicedFramesR2)
-		slicedSummary(slicedFramesB2)
-		p3 = slicedSummaryPlot(slicedFramesR2,signal=0)
-		p3 = slicedSummaryPlot(slicedFramesB2,signal=0)
-		slice = 1
-		p4 = plotSignalBasic(slicedFramesR2, slice=slice)	# Single pixel, signal vs wavelength: Only unmasked datapoints are plotted
-		p4 = plotSignalBasic(slicedFramesB2, slice=slice)
-		MaskViewer(slicedFramesR2.get(slice))			# Inspect timeline of signals and masked signals
-		MaskViewer(slicedFramesB2.get(slice))
-	
-	slicedFramesR2 = activateMasks(slicedFramesR2, slicedFramesR2.get(0).getMaskTypes())
-	slicedFramesR2 = addQualityInformation(slicedFramesR2)
-	slicedFramesR2 = convertSignal2StandardCap(slicedFramesR2, calTree=calTree)
-	slicedFramesB2 = activateMasks(slicedFramesB2, slicedFramesB2.get(0).getMaskTypes())
-	slicedFramesB2 = addQualityInformation(slicedFramesB2)
-	slicedFramesB2 = convertSignal2StandardCap(slicedFramesB2, calTree=calTree)
-	
-#	calBlockR2 = selectSlices(slicedFramesR2,scical="cal").get(0)
-#	csResponseAndDarkR2 = specDiffCs(calBlockR2, calTree = calTree)
-#	calBlockB2 = selectSlices(slicedFramesB2,scical="cal").get(0)
-#	csResponseAndDarkB2 = specDiffCs(calBlockB2, calTree = calTree)
-#	
-#	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
-#	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
-#	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
-#	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
-	calFrameR2 = activateMasks(slicedFramesR2.getCal(0), slicedFramesR2.getCal(0).getMaskTypes())
-	csResponseAndDarkR2 = specDiffCs(calFrameR2, calTree = calTree)
-	slicedFramesR2 = specSubtractDark(slicedFramesR2, calTree=calTree)
-	calFrameB2 = activateMasks(slicedFramesB2.getCal(0), slicedFramesB2.getCal(0).getMaskTypes())
-	csResponseAndDarkB2 = specDiffCs(calFrameB2, calTree = calTree)
-	slicedFramesB2 = specSubtractDark(slicedFramesB2, calTree=calTree)
-	
-	slicedFramesR2 = rsrfCal(slicedFramesR2, calTree=calTree)
-	slicedFramesB2 = rsrfCal(slicedFramesB2, calTree=calTree)
-	
-#	slicedFramesR2 = specRespCal(slicedFramesR2, csResponseAndDark=csResponseAndDarkR2)
-#	slicedFramesB2 = specRespCal(slicedFramesB2, csResponseAndDark=csResponseAndDarkB2)
-	slicedFramesR2 = specRespCal(slicedFramesR2, calTree=calTree)
-	slicedFramesB2 = specRespCal(slicedFramesB2, calTree=calTree)
-	
-	slicedFramesR = getSlicedCopy(slicedFramesR2)
-	slicedFramesB = getSlicedCopy(slicedFramesB2)
 	
 	print "NHSC transient correction"
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 2
+		slice = 7
 		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 1
+		slice = 6
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	slicedFramesR2 = specLongTermTransient(slicedFramesR2)
 	
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 2
-		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
 		slice = 1
+		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
+		slice = 2
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	if verbose:
@@ -230,9 +205,53 @@ for n in range(0,ndim):
 		p5ton = plotSignalBasic(slicedFramesB2, slice=slice)
 		slice = 1
 		p5toff = plotSignalBasic(slicedFramesB2, slice=slice)
+	
+	print "Level 0.5 -> Level 1"
+	#code from Kevin to trim unwanted data from red and blue frames based on gpr
+	slicedFramesR3 = getSlicedCopy(slicedFramesR)
+	slicedFramesB3 = getSlicedCopy(slicedFramesB)
+	nslice = slicedFramesB2["MasterBlockTable"]["FramesNo"].data[slicedFramesB2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+	qc =1 
+	for qq in range(1,nslice+1):
+		gpr = slicedFramesB.refs[qq].product["Status"]["GPR"].data[0]
+		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): del(slicedFramesB2.refs[qc]) 
+		qc = qc+1
+		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): qc=qc-1
+	
+	nslice = slicedFramesB3["MasterBlockTable"]["FramesNo"].data[slicedFramesB3["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+	qc =1 
+	for qq in range(1,nslice+1):
+		gpr = slicedFramesB.refs[qq].product["Status"]["GPR"].data[0]
+		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): del(slicedFramesB3.refs[qc]) 
+		qc = qc+1
+		if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): qc=qc-1
+	
+	nslice = slicedFramesR2["MasterBlockTable"]["FramesNo"].data[slicedFramesR2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+	qc =1 
+	for qq in range(1,nslice+1):
+		gpr = slicedFramesR.refs[qq].product["Status"]["GPR"].data[0]
+		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFramesR2.refs[qc]) 
+		qc = qc+1
+		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
+	
+	nslice = slicedFramesR3["MasterBlockTable"]["FramesNo"].data[slicedFramesR3["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+	qc =1 
+	for qq in range(1,nslice+1):
+		gpr = slicedFramesR.refs[qq].product["Status"]["GPR"].data[0]
+		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFramesR3.refs[qc]) 
+		qc = qc+1
+		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
+	
+	if verbose:slicedSummary(slicedFramesR)
+	if verbose:slicedSummary(slicedFramesR2)
+	if verbose:slicedSummary(slicedFramesR3)
+	if verbose:slicedSummary(slicedFramesB2)
+	del(slicedFramesR,slicedFramesB)
+	#end Kevin section	
+	
 	print "END NHSC transient correction"
-	slicedFramesR = selectSlices(slicedFramesR,scical="sci")
-	slicedFramesB = selectSlices(slicedFramesB,scical="sci")
+	slicedFramesR = selectSlices(slicedFramesR3,scical="sci")
+	slicedFramesB = selectSlices(slicedFramesB3,scical="sci")
 	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
 	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
 	
@@ -276,7 +295,7 @@ for n in range(0,ndim):
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
-	del(gpr,nslice,qc,qq,slicedFramesR2,slicedFramesB2,slicedCubesR,slicedCubesB,nameR,nameB,reset,slicedSpecFlagOutliers,slicedSpecWaveRebin,slicedWavelengthGrid,calFrameB2,cakFrameR2,csResponseAndDarkB2,csResponseAndDarkR2)
+	del(gpr,nslice,qc,qq,slicedFramesR2,slicedFramesB2,slicedCubesR,slicedCubesB,nameR,nameB,slicedSpecFlagOutliers,slicedSpecWaveRebin,slicedWavelengthGrid,calFrameB2,calFrameR2,csResponseAndDarkB2,csResponseAndDarkR2)
 		
 	# End Phase A
 
@@ -289,9 +308,9 @@ print "CONGRATULATIONS! Phase A complete!"
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.1876    #
+#      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 16, 2011                 #
+#                Sept 19, 2011                 #
 ################################################
 
