@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 19, 2011                 #
+#                Sept 20, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -308,6 +308,6 @@ print "CONGRATULATIONS! Phase A complete!"
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 19, 2011                 #
+#                Sept 20, 2011                 #
 ################################################
 
