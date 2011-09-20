@@ -13,7 +13,7 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v1.0"
+Pversion = "PhaseA_v1.1"
 Hversion = "8.0.2050"
 Cversion = "26"
 
@@ -176,9 +176,9 @@ for n in range(0,ndim):
 	print "NHSC transient correction"
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 7
+		slice = 1
 		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 6
+		slice = 0
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	slicedFramesR2 = specLongTermTransient(slicedFramesR2)
@@ -187,23 +187,23 @@ for n in range(0,ndim):
 		slicedSummary(slicedFramesR2)
 		slice = 1
 		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 2
+		slice = 0
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		slice = 2
-		p5 = plotSignalBasic(slicedFramesB2, slice=slice)
 		slice = 1
+		p5 = plotSignalBasic(slicedFramesB2, slice=slice)
+		slice = 0
 		p5off = plotSignalBasic(slicedFramesB2, slice=slice)
 	
 	slicedFramesB2 = specLongTermTransient(slicedFramesB2)
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		slice = 2
-		p5ton = plotSignalBasic(slicedFramesB2, slice=slice)
 		slice = 1
+		p5ton = plotSignalBasic(slicedFramesB2, slice=slice)
+		slice = 0
 		p5toff = plotSignalBasic(slicedFramesB2, slice=slice)
 	
 	print "Level 0.5 -> Level 1"
@@ -242,9 +242,7 @@ for n in range(0,ndim):
 		qc = qc+1
 		if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
 	
-	if verbose:slicedSummary(slicedFramesR)
 	if verbose:slicedSummary(slicedFramesR2)
-	if verbose:slicedSummary(slicedFramesR3)
 	if verbose:slicedSummary(slicedFramesB2)
 	del(slicedFramesR,slicedFramesB)
 	#end Kevin section	
@@ -295,8 +293,7 @@ for n in range(0,ndim):
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
-	del(gpr,nslice,qc,qq,slicedFramesR2,slicedFramesB2,slicedCubesR,slicedCubesB,nameR,nameB,slicedSpecFlagOutliers,slicedSpecWaveRebin,slicedWavelengthGrid,calFrameB2,calFrameR2,csResponseAndDarkB2,csResponseAndDarkR2)
-		
+	del(gpr,nslice,qc,qq,slicedFramesR,slicedFramesB,slicedFramesR2,slicedFramesB2,slicedFramesR3,slicedFramesB3,slicedCubesR,slicedCubesB,slicedCubesR2,slicedCubesB2,nameR,nameB)
 	# End Phase A
 
 
