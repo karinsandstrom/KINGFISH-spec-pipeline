@@ -160,7 +160,7 @@ for n in range(0,ndim):
 	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
 #OutJeff	calFrameB = activateMasks(slicedFramesB.getCal(0), slicedFramesB.getCal(0).getMaskTypes())
 #OutJeff	csResponseAndDarkB = specDiffCs(calFrameB, calTree = calTree)
-	slicedFramesB = specSubtractDark(slicedFramesB2, calTree=calTree)
+	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
 	
 	slicedFramesR = rsrfCal(slicedFramesR, calTree=calTree)
 	slicedFramesB = rsrfCal(slicedFramesB, calTree=calTree)
