@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 20, 2011                 #
+#                Sept 23, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -13,7 +13,7 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v1.1"
+Pversion = "PhaseA_v1.2"
 Hversion = "8.0.2050"
 Cversion = "26"
 
@@ -22,6 +22,7 @@ obsidlist = simpleAsciiTableReader(file = "/Users/kcroxall/obsidfile3077.dat")  
 ndim = poollist[0].data.dimensions[0]
 
 from herschel.pacs.signal import MaskViewer
+from java.awt import Color
 
 for n in range(0,ndim):
 	# ------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ for n in range(0,ndim):
 #OutJeff	slicedFramesR = addQualityInformation(slicedFramesR)
 	slicedFramesR = convertSignal2StandardCap(slicedFramesR, calTree=calTree)
 	slicedFramesB = activateMasks(slicedFramesB, slicedFramesB.get(0).getMaskTypes())
-	slicedFramesB = addQualityInformation(slicedFramesB)
+#OutJeff	slicedFramesB = addQualityInformation(slicedFramesB)
 	slicedFramesB = convertSignal2StandardCap(slicedFramesB, calTree=calTree)
 	
 #	calBlockR = selectSlices(slicedFramesR,scical="cal").get(0)
@@ -151,9 +152,9 @@ for n in range(0,ndim):
 #	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
 #	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
 #	
-	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
+#OutPhil	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
 #	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
-	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
+#OutPhil	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
 #	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
 #OutJeff	calFrameR = activateMasks(slicedFramesR.getCal(0), slicedFramesR.getCal(0).getMaskTypes())
 #OutJeff	csResponseAndDarkR = specDiffCs(calFrameR, calTree = calTree)
@@ -308,6 +309,6 @@ print "CONGRATULATIONS! Phase A complete!"
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 20, 2011                 #
+#                Sept 23, 2011                 #
 ################################################
 
