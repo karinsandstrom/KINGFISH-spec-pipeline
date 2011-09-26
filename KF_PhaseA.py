@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 23, 2011                 #
+#                Sept 26, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -13,12 +13,12 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v1.2"
+Pversion = "PhaseA_v1.3"
 Hversion = "8.0.2050"
 Cversion = "26"
 
-poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
-obsidlist = simpleAsciiTableReader(file = "/Users/kcroxall/obsidfile3077.dat")   #UPDATE to the correct file location
+poollist = simpleAsciiTableReader(file = "/home/kcroxall/pool_ISO_test.dat")     #UPDATE to the correct file location
+obsidlist = simpleAsciiTableReader(file = "/home/kcroxall/obsid_ISO_test.dat")   #UPDATE to the correct file location
 ndim = poollist[0].data.dimensions[0]
 
 from herschel.pacs.signal import MaskViewer
@@ -74,6 +74,7 @@ for n in range(0,ndim):
 	slicedFramesR = specExtendStatus(slicedFramesR, calTree=calTree)
 	slicedFramesR = convertChopper2Angle(slicedFramesR, calTree=calTree)
 	slicedFramesR = specAssignRaDec(slicedFramesR, calTree=calTree)
+	print "Now B"
 	slicedFramesB = specFlagSaturationFrames(slicedFramesB, rawRamp = slicedRawRampB, calTree=calTree, copy=1)
 	slicedFramesB = specConvDigit2VoltsPerSecFrames(slicedFramesB, calTree=calTree)
 	slicedFramesB = detectCalibrationBlock(slicedFramesB)
@@ -86,12 +87,14 @@ for n in range(0,ndim):
 	if verbose: 					# show footprints for selected raster position(s)
 		slicedPlotPointingOnOff(slicedFramesR)
 	
+	print "WaveCalc R"
 	slicedFramesR = waveCalc(slicedFramesR, calTree=calTree)
 	slicedFramesR = specCorrectHerschelVelocity(slicedFramesR, obs.auxiliary.orbitEphemeris, obs.auxiliary.pointing, obs.auxiliary.timeCorrelation)
 	slicedFramesR = findBlocks(slicedFramesR, calTree = calTree)
 	slicedFramesR = specFlagBadPixelsFrames(slicedFramesR, calTree=calTree)
 	slicedFramesR = flagChopMoveFrames(slicedFramesR, dmcHead=slicedDmcHeadR, calTree=calTree)
 	slicedFramesR = flagGratMoveFrames(slicedFramesR, dmcHead=slicedDmcHeadR, calTree=calTree)
+	print "Now B"
 	slicedFramesB = waveCalc(slicedFramesB, calTree=calTree)
 	slicedFramesB = specCorrectHerschelVelocity(slicedFramesB, obs.auxiliary.orbitEphemeris, obs.auxiliary.pointing, obs.auxiliary.timeCorrelation)
 	slicedFramesB = findBlocks(slicedFramesB, calTree = calTree)
@@ -111,6 +114,7 @@ for n in range(0,ndim):
 		p1 = slicedSummaryPlot(slicedFramesR,signal=0)		# Show the basic data structure, without the signal
 		p1 = slicedSummaryPlot(slicedFramesB,signal=0)		
 	
+	print "Rules!"
 	rules = [SlicingRule("LineId",1),SlicingRule("RasterLineNum",1),SlicingRule("RasterColumnNum",1),SlicingRule("NoddingPosition",1),SlicingRule("NodCycleNum",1),SlicingRule("IsOutOfField",1),SlicingRule("Band",1)]
 	slicedFramesR = pacsSliceContext(slicedFramesR, slicingRules = rules, removeUndefined=1)
 	slicedFramesR = specAddGratingCycleStatus(slicedFramesR)
@@ -125,6 +129,7 @@ for n in range(0,ndim):
 # ------------------------------------------------------------------------------
 #         Processing      Level 0.5 -> Level 1
 # ------------------------------------------------------------------------------
+	print "Level 0.5 -> Level 1.0"
 	slicedFramesR = activateMasks(slicedFramesR, String1d([" "]), exclusive = True)
 	slicedFramesR = specFlagGlitchFramesQTest(slicedFramesR, copy=1)
 	slicedFramesB = activateMasks(slicedFramesB, String1d([" "]), exclusive = True)
@@ -140,6 +145,7 @@ for n in range(0,ndim):
 		MaskViewer(slicedFramesR.get(slice))			# Inspect timeline of signals and masked signals
 		MaskViewer(slicedFramesB.get(slice))
 	
+	print "ACTIVATE QUALITY INFO!"
 	slicedFramesR = activateMasks(slicedFramesR, slicedFramesR.get(0).getMaskTypes())
 #OutJeff	slicedFramesR = addQualityInformation(slicedFramesR)
 	slicedFramesR = convertSignal2StandardCap(slicedFramesR, calTree=calTree)
@@ -152,9 +158,9 @@ for n in range(0,ndim):
 #	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
 #	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
 #	
-#OutPhil	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
+#outPhil	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
 #	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
-#OutPhil	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
+#outPhil	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
 #	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
 #OutJeff	calFrameR = activateMasks(slicedFramesR.getCal(0), slicedFramesR.getCal(0).getMaskTypes())
 #OutJeff	csResponseAndDarkR = specDiffCs(calFrameR, calTree = calTree)
@@ -163,6 +169,7 @@ for n in range(0,ndim):
 #OutJeff	csResponseAndDarkB = specDiffCs(calFrameB, calTree = calTree)
 	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
 	
+	print "rsrfCal"
 	slicedFramesR = rsrfCal(slicedFramesR, calTree=calTree)
 	slicedFramesB = rsrfCal(slicedFramesB, calTree=calTree)
 	
@@ -177,37 +184,45 @@ for n in range(0,ndim):
 	print "NHSC transient correction"
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 1
+		slice = 2
 		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 0
+		slice = 3
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	slicedFramesR2 = specLongTermTransient(slicedFramesR2)
 	
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 1
+		slice = 2
 		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
-		slice = 0
+		slice = 3
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		slice = 1
+		slice = 2
 		p5 = plotSignalBasic(slicedFramesB2, slice=slice)
-		slice = 0
+		slice = 3
 		p5off = plotSignalBasic(slicedFramesB2, slice=slice)
 	
 	slicedFramesB2 = specLongTermTransient(slicedFramesB2)
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
-		slice = 1
+		slice = 2
 		p5ton = plotSignalBasic(slicedFramesB2, slice=slice)
-		slice = 0
+		slice = 3
 		p5toff = plotSignalBasic(slicedFramesB2, slice=slice)
 	
+	p=PlotXY(slicedFramesR.refs[3].product["Status"]["RESETINDEX"].data,slicedFramesR.refs[3].product["Signal"].data[2,12,:])
+	p[2]=LayerXY(slicedFramesR2.refs[3].product["Status"]["RESETINDEX"].data,slicedFramesR2.refs[3].product["Signal"].data[2,12,:])
 	print "Level 0.5 -> Level 1"
+	print "END NHSC transient correction"
+	slicedFramesR = selectSlices(slicedFramesR,scical="sci")
+	slicedFramesB = selectSlices(slicedFramesB,scical="sci")
+	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
+	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
+	
 	#code from Kevin to trim unwanted data from red and blue frames based on gpr
 	slicedFramesR3 = getSlicedCopy(slicedFramesR)
 	slicedFramesB3 = getSlicedCopy(slicedFramesB)
@@ -245,18 +260,14 @@ for n in range(0,ndim):
 	
 	if verbose:slicedSummary(slicedFramesR2)
 	if verbose:slicedSummary(slicedFramesB2)
+	if verbose:slicedSummary(slicedFramesR3)
+	if verbose:slicedSummary(slicedFramesB3)
 	del(slicedFramesR,slicedFramesB)
 	#end Kevin section	
 	
-	print "END NHSC transient correction"
-	slicedFramesR = selectSlices(slicedFramesR3,scical="sci")
-	slicedFramesB = selectSlices(slicedFramesB3,scical="sci")
-	slicedFramesR2 = selectSlices(slicedFramesR2,scical="sci")
-	slicedFramesB2 = selectSlices(slicedFramesB2,scical="sci")
-	
 	print "Refine the spectral flatfield"
-	slicedFramesR = specFlatFieldRange(slicedFramesR,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
-	slicedFramesB = specFlatFieldRange(slicedFramesB,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
+	slicedFramesR = specFlatFieldRange(slicedFramesR3,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
+	slicedFramesB = specFlatFieldRange(slicedFramesB3,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	slicedFramesR2 = specFlatFieldRange(slicedFramesR2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	slicedFramesB2 = specFlatFieldRange(slicedFramesB2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)
 	
@@ -270,6 +281,11 @@ for n in range(0,ndim):
 	slicedCubesB = specFrames2PacsCube(slicedFramesB)
 	slicedCubesR2 = specFrames2PacsCube(slicedFramesR2)
 	slicedCubesB2 = specFrames2PacsCube(slicedFramesB2)
+	
+	if verbose:slicedSummary(slicedCubesR)
+	if verbose:slicedSummary(slicedCubesB)
+	if verbose:slicedSummary(slicedCubesR2)
+	if verbose:slicedSummary(slicedCubesB2)
 	
 	slicedCubesR.meta["Pversion"]=StringParameter(Pversion)
 	slicedCubesR.meta["Hversion"]=StringParameter(Hversion)
@@ -287,14 +303,15 @@ for n in range(0,ndim):
 	nameB=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+Hversion+"_"+Pversion
 	nameR2=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+Hversion+"_"+Pversion+"_Dtrans"
 	nameB2=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+Hversion+"_"+Pversion+"_Dtrans"
-	saveSlicedCopy(slicedCubesR,nameR)
-	saveSlicedCopy(slicedCubesB,nameB)
-	saveSlicedCopy(slicedCubesR2,nameR2)
-	saveSlicedCopy(slicedCubesB2,nameB2)
+	if (slicedCubesR.getRefs().size() > 1):saveSlicedCopy(slicedCubesR,nameR)
+	if (slicedCubesB.getRefs().size() > 1):saveSlicedCopy(slicedCubesB,nameB)
+	if (slicedCubesR2.getRefs().size() > 1):saveSlicedCopy(slicedCubesR2,nameR2)
+	if (slicedCubesB2.getRefs().size() > 1):saveSlicedCopy(slicedCubesB2,nameB2)
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
-	del(gpr,nslice,qc,qq,slicedFramesR,slicedFramesB,slicedFramesR2,slicedFramesB2,slicedFramesR3,slicedFramesB3,slicedCubesR,slicedCubesB,slicedCubesR2,slicedCubesB2,nameR,nameB)
+	del(slicedFramesR,slicedFramesB,slicedFramesR2,slicedFramesB2,slicedCubesR,slicedCubesB,slicedCubesR2,slicedCubesB2,nameR,nameB)
+		
 	# End Phase A
 
 
@@ -309,6 +326,6 @@ print "CONGRATULATIONS! Phase A complete!"
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 23, 2011                 #
+#                Sept 26, 2011                 #
 ################################################
 
