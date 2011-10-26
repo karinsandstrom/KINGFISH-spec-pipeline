@@ -4,8 +4,31 @@
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Oct 13, 2011                  #
+#                Oct 26, 2011                  #
 ################################################
+def getra(cube,raster):
+	ra = cube.refs[raster].product["ra"].data[:,2,2]
+	medra=getMedian(ra)
+	return (medra)
+
+def getdec(cube,raster):
+	dec = cube.refs[raster].product["dec"].data[:,2,2]
+	meddec=getMedian(dec)
+	return (meddec)
+
+def getpositions(cube):
+	raarray = Double1d()
+	decarray = Double1d()
+	rastarray = Double1d()
+	for rasti in range (0,cube.getRefs().size()):
+		deci = getdec(cube,rasti)
+		rai = getra(cube,rasti)
+		raarray.append(rai)
+		decarray.append(deci)
+		rastarray.append(rasti)
+	posarray = [raarray,decarray,rastarray]
+	return (posarray)
+
 def getMedian(numericValues):
   theValues = SORT(numericValues)
   if len(theValues) % 2 == 1:
@@ -20,10 +43,8 @@ def getMedian(numericValues):
 
 phasealist = simpleAsciiTableReader(file = "/Users/kcroxall/dtrans.lst") #UPDATE to the correct file location
 ndim = phasealist[0].data.dimensions[0]
-
-from herschel.pacs.signal import MaskViewer
 verbose = 0
-for n in range(4,ndim):
+for n in range(0,ndim):
 	# ------------------------------------------------------------------------------
 	#         Processing      Level 1 -> Level 2
 	# ------------------------------------------------------------------------------
@@ -87,12 +108,19 @@ for n in range(4,ndim):
 		scical      = ""
 		sliceNumber = []
 		onOff="ON"
-		sCubesOn = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,\
-rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
+		sCubesOn = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
 		onOff="OFF"
-		sCubesOff = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,\
-rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
+		sCubesOff = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
 #pre-Ktrans plot
+		pos=getpositions(sCubesOn)
+		table = TableDataset()
+		ascii = AsciiTableTool()
+		table["Raster"] = Column(pos[2])
+		table["RA"] = Column(pos[0])
+		table["DEC"] = Column(pos[1])
+		ascii.formatter=FixedWidthFormatter(sizes=[10,25,25])
+		tabname = "/Users/kcroxall/" + galname + "_" + linename + "_pos.tab"   # UPDATE PATH
+		ascii.save(tabname, table)
 		wave = Double1d()
 		flux = Double1d()
 		reset = Double1d()
@@ -398,5 +426,5 @@ print "CONGRATULATIONS! Phase B complete!"
 #      BETA version tested in HIPE 8.0.2050    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Oct 13, 2011                  #
+#                Oct 26, 2011                  #
 ################################################
