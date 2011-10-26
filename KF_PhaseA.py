@@ -1,7 +1,7 @@
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2050    #
+#      BETA version tested in HIPE 8.0.2999    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
 #                Sept 26, 2011                 #
@@ -13,15 +13,14 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v1.3"
-Hversion = "8.0.2050"
+Pversion = "PhaseA_v1.5"
+Hversion = "8.0.2999"
 Cversion = "26"
 
-poollist = simpleAsciiTableReader(file = "/home/kcroxall/pool_ISO_test.dat")     #UPDATE to the correct file location
-obsidlist = simpleAsciiTableReader(file = "/home/kcroxall/obsid_ISO_test.dat")   #UPDATE to the correct file location
+poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
+obsidlist = simpleAsciiTableReader(file = "/Users/kcroxall/obsidfile3077.dat")   #UPDATE to the correct file location
 ndim = poollist[0].data.dimensions[0]
 
-from herschel.pacs.signal import MaskViewer
 from java.awt import Color
 
 for n in range(0,ndim):
@@ -61,7 +60,6 @@ for n in range(0,ndim):
 		slicedSummary(slicedFramesR)			# Overview of the basic structure of the data
 		slicedSummary(slicedFramesB)
 		p0 = slicedSummaryPlot(slicedFramesR,signal=1)	# Grating position & raw signal of central pixel
-	
 # ------------------------------------------------------------------------------
 #        Processing      Level 0 -> Level 0.5
 # ------------------------------------------------------------------------------
@@ -83,10 +81,8 @@ for n in range(0,ndim):
 	slicedFramesB = specExtendStatus(slicedFramesB, calTree=calTree)
 	slicedFramesB = convertChopper2Angle(slicedFramesB, calTree=calTree)
 	slicedFramesB = specAssignRaDec(slicedFramesB, calTree=calTree)
-	
-	if verbose: 					# show footprints for selected raster position(s)
+	if verbose: 						# show footprints for selected raster position(s)
 		slicedPlotPointingOnOff(slicedFramesR)
-	
 	print "WaveCalc R"
 	slicedFramesR = waveCalc(slicedFramesR, calTree=calTree)
 	slicedFramesR = specCorrectHerschelVelocity(slicedFramesR, obs.auxiliary.orbitEphemeris, obs.auxiliary.pointing, obs.auxiliary.timeCorrelation)
@@ -101,11 +97,9 @@ for n in range(0,ndim):
 	slicedFramesB = specFlagBadPixelsFrames(slicedFramesB, calTree=calTree)
 	slicedFramesB = flagChopMoveFrames(slicedFramesB, dmcHead=slicedDmcHeadB, calTree=calTree)
 	slicedFramesB = flagGratMoveFrames(slicedFramesB, dmcHead=slicedDmcHeadB, calTree=calTree)
-	
 	print "Delete superfluous products to ease RAM usage"
 	del(slicedRawRampR,slicedRawRampB,slicedDmcHeadR,slicedDmcHeadB,level0)
 	System.gc()
-	
 	if verbose:
 		slicedSummary(slicedFramesR)						# an overview of the slicedFrames contents
 		slicedSummary(slicedFramesB)
@@ -113,7 +107,6 @@ for n in range(0,ndim):
 		maskSummary(slicedFramesB)
 		p1 = slicedSummaryPlot(slicedFramesR,signal=0)		# Show the basic data structure, without the signal
 		p1 = slicedSummaryPlot(slicedFramesB,signal=0)		
-	
 	print "Rules!"
 	rules = [SlicingRule("LineId",1),SlicingRule("RasterLineNum",1),SlicingRule("RasterColumnNum",1),SlicingRule("NoddingPosition",1),SlicingRule("NodCycleNum",1),SlicingRule("IsOutOfField",1),SlicingRule("Band",1)]
 	slicedFramesR = pacsSliceContext(slicedFramesR, slicingRules = rules, removeUndefined=1)
@@ -125,7 +118,6 @@ for n in range(0,ndim):
 		slicedSummary(slicedFramesB)
 		p2 = slicedSummaryPlot(slicedFramesR,signal=0)
 		p2 = slicedSummaryPlot(slicedFramesB,signal=0)
-	
 # ------------------------------------------------------------------------------
 #         Processing      Level 0.5 -> Level 1
 # ------------------------------------------------------------------------------
@@ -144,59 +136,49 @@ for n in range(0,ndim):
 		p4 = plotSignalBasic(slicedFramesB, slice=slice)
 		MaskViewer(slicedFramesR.get(slice))			# Inspect timeline of signals and masked signals
 		MaskViewer(slicedFramesB.get(slice))
-	
 	print "ACTIVATE QUALITY INFO!"
 	slicedFramesR = activateMasks(slicedFramesR, slicedFramesR.get(0).getMaskTypes())
-#OutJeff	slicedFramesR = addQualityInformation(slicedFramesR)
 	slicedFramesR = convertSignal2StandardCap(slicedFramesR, calTree=calTree)
 	slicedFramesB = activateMasks(slicedFramesB, slicedFramesB.get(0).getMaskTypes())
-#OutJeff	slicedFramesB = addQualityInformation(slicedFramesB)
 	slicedFramesB = convertSignal2StandardCap(slicedFramesB, calTree=calTree)
 	
+###########################  Insert CALBLOCK
 #	calBlockR = selectSlices(slicedFramesR,scical="cal").get(0)
 #	csResponseAndDarkR = specDiffCs(calBlockR, calTree = calTree)
 #	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
 #	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
-#	
-#outPhil	slicedFramesR = selectSlices(slicedFramesR,scical="sci")		#InJeff
-#	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
-#outPhil	slicedFramesB = selectSlices(slicedFramesB,scical="sci")		#InJeff
-#	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
-#OutJeff	calFrameR = activateMasks(slicedFramesR.getCal(0), slicedFramesR.getCal(0).getMaskTypes())
-#OutJeff	csResponseAndDarkR = specDiffCs(calFrameR, calTree = calTree)
 	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
-#OutJeff	calFrameB = activateMasks(slicedFramesB.getCal(0), slicedFramesB.getCal(0).getMaskTypes())
-#OutJeff	csResponseAndDarkB = specDiffCs(calFrameB, calTree = calTree)
 	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
-	
 	print "rsrfCal"
 	slicedFramesR = rsrfCal(slicedFramesR, calTree=calTree)
 	slicedFramesB = rsrfCal(slicedFramesB, calTree=calTree)
 	
-#	slicedFramesR = specRespCal(slicedFramesR, csResponseAndDark=csResponseAndDarkR)
-#	slicedFramesB = specRespCal(slicedFramesB, csResponseAndDark=csResponseAndDarkB)
 	slicedFramesR = specRespCal(slicedFramesR, calTree=calTree)
 	slicedFramesB = specRespCal(slicedFramesB, calTree=calTree)
+	#slicedFramesR = specRespCal(slicedFramesR, csResponseAndDark=csResponseAndDarkR)
+	#slicedFramesB = specRespCal(slicedFramesB, csResponseAndDark=csResponseAndDarkB)
 	
+###########################  Insert CALBLOCK END
 	slicedFramesR2 = getSlicedCopy(slicedFramesR)
 	slicedFramesB2 = getSlicedCopy(slicedFramesB)
 	
 	print "NHSC transient correction"
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 2
-		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
 		slice = 3
+		p5 = plotSignalBasic(slicedFramesR2, slice=slice)
+		slice = 2
 		p5off = plotSignalBasic(slicedFramesR2, slice=slice)
-	
+		module = 12
+		p5 = plotTransient(slicedFramesR2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
 	slicedFramesR2 = specLongTermTransient(slicedFramesR2)
-	
 	if verbose:
 		slicedSummary(slicedFramesR2)
-		slice = 2
-		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
 		slice = 3
+		p5ton = plotSignalBasic(slicedFramesR2, slice=slice)
+		slice = 2
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
+		p5 = plotTransient(slicedFramesR2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
 	
 	if verbose:
 		slicedSummary(slicedFramesB2)
