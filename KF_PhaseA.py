@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.2999    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 26, 2011                 #
+#                 Oct 26, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -305,9 +305,9 @@ print "CONGRATULATIONS! Phase A complete!"
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2050    #
+#      BETA version tested in HIPE 8.0.2999    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Sept 26, 2011                 #
+#                 Oct 26, 2011                 #
 ################################################
 
