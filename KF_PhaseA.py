@@ -301,9 +301,9 @@ print "CONGRATULATIONS! Phase A complete!"
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2999    #
+#      BETA version tested in HIPE 8.0.3067    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Oct 26, 2011                 #
+#                 Nov  8, 2011                 #
 ################################################
 
