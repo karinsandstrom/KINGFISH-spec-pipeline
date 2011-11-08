@@ -1,10 +1,10 @@
 ################################################
 #                                              #
 #    PHASE A: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2999    #
+#      BETA version tested in HIPE 8.0.3067    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                 Oct 26, 2011                 #
+#                 Nov  8, 2011                 #
 ################################################
 
 # All data must be imported into HIPE data pools.  The pipeline will not unpack the HSA tarballs
@@ -13,9 +13,9 @@
 # into new pools that are sorted by AOR and line.  The frames can be saved chopped up by raster
 # or as one large data stream.
 
-Pversion = "PhaseA_v1.5"
-Hversion = "8.0.2999"
-Cversion = "26"
+Pversion = "PhaseA_v1.6"
+Hversion = "8.0.3067"
+Cversion = "32"
 
 poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
 obsidlist = simpleAsciiTableReader(file = "/Users/kcroxall/obsidfile3077.dat")   #UPDATE to the correct file location
@@ -31,14 +31,14 @@ for n in range(0,ndim):
 	print obsidlist[0].data[n]
 	print n,poollist[0].data.dimensions[0]
 	obs    = getObservation(obsidlist[0].data[n], verbose=True, useHsa=0, poolLocation=None, poolName=str(poollist[0].data[n]))
-# verbose: 0 - silent, execute the pipeline only
-#	   1 - will trigger diagnostic output on the screen, plots, and displays
+	# verbose: 0 - silent, execute the pipeline only
+	#	   1 - will trigger diagnostic output on the screen, plots, and displays
 	verbose = 1
 	if verbose: obsSummary(obs)
 	cameraR = "red"
 	cameraB = "blue"
 	calTree = getCalTree(obs=obs)
-#	calTreeb = obs.calibration	# to use the cal files packaged with the obs rather than the latest on-machine cal products
+	#calTreeb = obs.calibration	# to use the cal files packaged with the obs rather than the latest on-machine cal products
 	if verbose: 
 		print calTree
 		print calTree.common
@@ -142,27 +142,23 @@ for n in range(0,ndim):
 	slicedFramesB = activateMasks(slicedFramesB, slicedFramesB.get(0).getMaskTypes())
 	slicedFramesB = convertSignal2StandardCap(slicedFramesB, calTree=calTree)
 	
-###########################  Insert CALBLOCK
-#	calBlockR = selectSlices(slicedFramesR,scical="cal").get(0)
-#	csResponseAndDarkR = specDiffCs(calBlockR, calTree = calTree)
-#	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
-#	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
+	calBlockR = selectSlices(slicedFramesR,scical="cal").get(0)
+	csResponseAndDarkR = specDiffCs(calBlockR, calTree = calTree)
+	calBlockB = selectSlices(slicedFramesB,scical="cal").get(0)
+	csResponseAndDarkB = specDiffCs(calBlockB, calTree = calTree)
 	slicedFramesR = specSubtractDark(slicedFramesR, calTree=calTree)
 	slicedFramesB = specSubtractDark(slicedFramesB, calTree=calTree)
 	print "rsrfCal"
 	slicedFramesR = rsrfCal(slicedFramesR, calTree=calTree)
 	slicedFramesB = rsrfCal(slicedFramesB, calTree=calTree)
-	
-	slicedFramesR = specRespCal(slicedFramesR, calTree=calTree)
-	slicedFramesB = specRespCal(slicedFramesB, calTree=calTree)
-	#slicedFramesR = specRespCal(slicedFramesR, csResponseAndDark=csResponseAndDarkR)
-	#slicedFramesB = specRespCal(slicedFramesB, csResponseAndDark=csResponseAndDarkB)
-	
-###########################  Insert CALBLOCK END
-	slicedFramesR2 = getSlicedCopy(slicedFramesR)
-	slicedFramesB2 = getSlicedCopy(slicedFramesB)
-	
+	print "specRespCal"
+	slicedFramesR = specRespCal(slicedFramesR, csResponseAndDark=csResponseAndDarkR)
+	slicedFramesB = specRespCal(slicedFramesB, csResponseAndDark=csResponseAndDarkB)
+	print "tmp"
+#	slicedFramesR = specRespCal(slicedFramesR, calTree=calTree)
+#	slicedFramesB = specRespCal(slicedFramesB, calTree=calTree)	
 	print "NHSC transient correction"
+	slicedFramesR2 = getSlicedCopy(slicedFramesR)
 	if verbose:
 		slicedSummary(slicedFramesR2)
 		slice = 3
@@ -179,7 +175,7 @@ for n in range(0,ndim):
 		slice = 2
 		p5toff = plotSignalBasic(slicedFramesR2, slice=slice)
 		p5 = plotTransient(slicedFramesR2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
-	
+	slicedFramesB2 = getSlicedCopy(slicedFramesB)
 	if verbose:
 		slicedSummary(slicedFramesB2)
 		slice = 2
