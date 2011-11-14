@@ -146,6 +146,12 @@ for n in range(0,ndim):
 	slicedRawRampB = level0.raw.getCamera(cameraB).product
 	slicedDmcHeadB = level0.dmc.getCamera(cameraB).product    
 	galname = slicedFramesR.meta["object"].string
+	slicedFramesR.meta["Pversion"]=StringParameter(Pversion)
+	slicedFramesR.meta["Hversion"]=StringParameter(Hversion)
+	slicedFramesR.meta["Cversion"]=StringParameter(Cversion)
+	slicedFramesB.meta["Pversion"]=StringParameter(Pversion)
+	slicedFramesB.meta["Hversion"]=StringParameter(Hversion)
+	slicedFramesB.meta["Cversion"]=StringParameter(Cversion)
 	
 	if verbose:
 		slicedSummary(slicedFramesR)			# Overview of the basic structure of the data
@@ -393,18 +399,6 @@ for n in range(0,ndim):
 	if verbose:slicedSummary(slicedCubesRK_NOFF)
 	if verbose:slicedSummary(slicedCubesRD_NOFF)
 
-	slicedCubesRK.meta["Pversion"]=StringParameter(Pversion)
-	slicedCubesRK.meta["Hversion"]=StringParameter(Hversion)
-	slicedCubesRK.meta["Cversion"]=StringParameter(Cversion)
-	slicedCubesBK.meta["Pversion"]=StringParameter(Pversion)
-	slicedCubesBK.meta["Hversion"]=StringParameter(Hversion)
-	slicedCubesBK.meta["Cversion"]=StringParameter(Cversion)
-	slicedCubesRD.meta["Pversion"]=StringParameter(Pversion)
-	slicedCubesRD.meta["Hversion"]=StringParameter(Hversion)
-	slicedCubesRD.meta["Cversion"]=StringParameter(Cversion)
-	slicedCubesBD.meta["Pversion"]=StringParameter(Pversion)
-	slicedCubesBD.meta["Hversion"]=StringParameter(Hversion)
-	slicedCubesBD.meta["Cversion"]=StringParameter(Cversion)
 	nameRK=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+Hversion+"_"+Pversion+"_Ktrans"
 	nameBK=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+Hversion+"_"+Pversion+"_Ktrans"
 	nameRD=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+Hversion+"_"+Pversion+"_Dtrans"
