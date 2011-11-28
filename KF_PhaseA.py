@@ -16,7 +16,7 @@
 Pversion = "PhaseA_v3.0"
 Hversion = "8.0.3215"
 Cversion = "32"
-shortver = "v30
+shortver = "v30"
 poollist = simpleAsciiTableReader(file = "/Users/kcroxall/poolfile3077.dat")     #UPDATE to the correct file location
 obsidlist = simpleAsciiTableReader(file = "/Users/kcroxall/obsidfile3077.dat")   #UPDATE to the correct file location
 
