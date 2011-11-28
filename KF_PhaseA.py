@@ -164,13 +164,12 @@ for n in range(0,ndim):
 	print "save PhaseA products"
 	nameR=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraR+"_"+shortver
 	nameB=galname+"_"+str(obsidlist[0].data[n])+"_"+cameraB+"_"+shortver
-	if (slicedCubesR.getRefs().size() > 1):saveSlicedCopy(slicedCubesR,nameR)
-	if (slicedCubesB.getRefs().size() > 1):saveSlicedCopy(slicedCubesB,nameB)
+	if (slicedFramesR.getRefs().size() > 1):saveSlicedCopy(slicedFramesR,nameR)
+	if (slicedFramesB.getRefs().size() > 1):saveSlicedCopy(slicedFramesB,nameB)
 	#delete products before cycling to the next galaxy
 	print "finished with " + str(poollist[0].data[n])
 	System.gc()
 	del(slicedFramesR,slicedFramesB,nameR,nameB)
-		
 	# End Phase A
 
 
