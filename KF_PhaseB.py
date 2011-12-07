@@ -1,34 +1,11 @@
 ################################################
 #                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2050    #
+#      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Oct 26, 2011                  #
+#                Dec 06, 2011                  #
 ################################################
-def getra(cube,raster):
-	ra = cube.refs[raster].product["ra"].data[:,2,2]
-	medra=getMedian(ra)
-	return (medra)
-
-def getdec(cube,raster):
-	dec = cube.refs[raster].product["dec"].data[:,2,2]
-	meddec=getMedian(dec)
-	return (meddec)
-
-def getpositions(cube):
-	raarray = Double1d()
-	decarray = Double1d()
-	rastarray = Double1d()
-	for rasti in range (0,cube.getRefs().size()):
-		deci = getdec(cube,rasti)
-		rai = getra(cube,rasti)
-		raarray.append(rai)
-		decarray.append(deci)
-		rastarray.append(rasti)
-	posarray = [raarray,decarray,rastarray]
-	return (posarray)
-
 def getMedian(numericValues):
   theValues = SORT(numericValues)
   if len(theValues) % 2 == 1:
@@ -38,23 +15,266 @@ def getMedian(numericValues):
     upper = theValues[len(theValues)/2]
     return (float(lower + upper)) / 2 
 
+def ktrans_pos(frame):
+	table = TableDataset()
+	ascii = AsciiTableTool()
+	raarray = Double1d()
+	decarray = Double1d()
+	rastarray = Double1d()
+	spatialarray = Double1d()
+	obsid = str(frame.meta["obsid"].long)
+	galname = frame.meta["object"].string
+	camera = slicedFrames.meta["camera"].string
+	for rasti in range (0,frame.getRefs().size()):
+		for spatialpix in range (0,25):
+			#print "Spatial Pixel ",spatialpix
+			RApix = getMedian(frame.refs[rasti].product["Ra"].data[8,spatialpix,:])
+			DECpix = getMedian(frame.refs[rasti].product["Dec"].data[8,spatialpix,:])
+			raarray.append(RApix)
+			decarray.append(DECpix)
+			rastarray.append(rasti)
+			spatialarray.append(spatialpix)
+	table["Raster"] = Column(rastarray)
+	table["Spatialpix"] = Column(spatialarray)
+	table["RA"] = Column(raarray)
+	table["DEC"] = Column(decarray)
+	ascii.formatter=FixedWidthFormatter(sizes=[10,10,25,25])
+	tabname = "/home/kcroxall/" + galname + "_" + obsid + "_" + camera + "_postest.tab"   # UPDATE PATH
+	ascii.save(tabname, table)
+
+def ktrans_frame(frame):
+	z=frame.meta["redshiftValue"].double/300000
+	for rasti in range (0,frame.getRefs().size()):
+		print "Raster", rasti
+		wavecent = ((frame.refs[rasti].product["BlockTable"]["MinWave"].data[0] + frame.refs[rasti].product["BlockTable"]["MaxWave"].data[0])/2)
+		chanwidth = 75
+		linewidth = 0.03
+		linecent = wavecent
+		if (wavecent > 190): 
+			chanwidth = 55
+			linewidth = 0.18
+			linecent = 205.17823*(1+z)
+		if (wavecent > 150)&(wavecent < 170): 
+			linewidth = 0.18
+			chanwidth = 45
+			linecent = 157.7409*(1+z)
+		if (wavecent > 110)&(wavecent < 130): 
+			chanwidth = 45
+			linewidth = 0.18
+			linecent = 121.89757*(1+z)
+		if (wavecent > 75)&(wavecent < 95): 
+			chanwidth = 45
+			linewidth = 0.065
+			linecent = 88.356*(1+z)
+		if (wavecent > 60)&(wavecent < 70): 
+			chanwidth = 75
+			linewidth = 0.065
+			linecent = 63.183705*(1+z)
+		#print "Line at ", linecent
+		for spatialpix in range (0,25):
+			#print "Spatial Pixel ",spatialpix
+			for specpix in range (1,17):
+				#print "Spectral Pixel ", specpix
+				wave = frame.refs[rasti].product["Wave"].data[specpix,spatialpix,:]
+				flux = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
+				fluxnew = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
+				reset = frame.refs[rasti].product["Status"]["RESETINDEX"].data[:]
+				continuum = getMedian(flux)
+				if (flux[33] == flux[33])&(flux[53] == flux[53]):
+					for pix in range (0,reset.dimensions[0]-1):
+						dist = ABS(reset[:] - reset[pix])
+						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
+						subval = getMedian(flux[nearby])
+						flux2 = flux[nearby]
+						dist2 = ABS(flux2 - subval)
+						mask = dist2.where(IS_FINITE)
+						dist2c = dist2[mask]
+						meandist2 = SUM(dist2c)/dist2c.dimensions[0]
+						nearby2 = dist2.where(dist2<meandist2)
+						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
+						fluxnew[pix] = flux[pix]-subval2#+continuum
+				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
+			System.gc()
+	del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
+	return (frame)
+
+def ktrans_frame_posvel_perpix(frame,table):
+	counter = 0
+	z=frame.meta["redshiftValue"].double/300000
+	for rasti in range (0,frame.getRefs().size()):
+		print "Raster", rasti, " of",frame.getRefs().size()-1
+		wavecent = ((frame.refs[rasti].product["BlockTable"]["MinWave"].data[0] + frame.refs[rasti].product["BlockTable"]["MaxWave"].data[0])/2)
+		chanwidth = 75
+		linewidth = .00001
+		linecent = wavecent
+		stepsize = 0.006241358
+		rastline = .00001
+		if (wavecent > 190): 
+			chanwidth = 45
+			rastline = 205.17823
+			linewidth = 0.11
+			stepsize = 0.004068376
+		if (wavecent > 150)&(wavecent < 170): 
+			chanwidth = 35
+			rastline = 157.7409
+			linewidth = 0.13
+			stepsize = 0.006241358
+		if (wavecent > 110)&(wavecent < 130): 
+			chanwidth = 30
+			rastline = 121.89757
+			linewidth = 0.12
+			stepsize = 0.007201311
+		if (wavecent > 75)&(wavecent < 95): 
+			chanwidth = 33
+			rastline = 88.356
+			linewidth = 0.04
+			stepsize = 0.002169228
+		if (wavecent > 60)&(wavecent < 70): 
+			chanwidth = 50
+			rastline =  63.183705
+			linewidth = 0.03
+			stepsize = 0.001157611
+		print "Line at ", rastline
+		for spatialpix in range (0,25):
+			medvel=float(posarr[0].data[counter][31:35])
+			minvel=float(posarr[0].data[counter][37:42])
+			maxvel=float(posarr[0].data[counter][45:51])
+			counter += 1
+			z = medvel/300000
+			zmin = minvel/300000
+			zmax = maxvel/300000
+			linecent = rastline*(1+z)
+			linemax = rastline*(1+zmax)
+			linemin = rastline*(1+zmin)
+			if (linewidth < linemax-linemin):linewidth = linemax-linemin
+			if (linecent != linecent):linecent=wavecent
+			if (linewidth < linemax-linemin):chanwidth = 1.6*linewidth/stepsize
+			print "Spatial Pixel ",spatialpix," LineCenter ",linecent," LineWidth ",linewidth," ChanWidth ",chanwidth," CalcChanWidth ",1.6*linewidth/stepsize
+			for specpix in range (1,17):
+				#print "Spectral Pixel ", specpix
+				wave = frame.refs[rasti].product["Wave"].data[specpix,spatialpix,:]
+				flux = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
+				fluxnew = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
+				reset = frame.refs[rasti].product["Status"]["RESETINDEX"].data[:]
+				continuum = getMedian(flux)
+				if (flux[33] == flux[33])&(flux[53] == flux[53]):
+					for pix in range (0,reset.dimensions[0]-1):
+						dist = ABS(reset[:] - reset[pix])
+						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth/2).or(wave>linecent+linewidth/2)))
+						subval = getMedian(flux[nearby])
+						flux2 = flux[nearby]
+						dist2 = ABS(flux2 - subval)
+						mask = dist2.where(IS_FINITE)
+						dist2c = dist2[mask]
+						meandist2 = SUM(dist2c)/dist2c.dimensions[0]
+						nearby2 = dist2.where(dist2<meandist2)
+						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
+						fluxnew[pix] = flux[pix]-subval2#+continuum
+				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
+			System.gc()
+	del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
+	return (frame)
+
 # A list of the Phase A pools that are to be processed
 # need to be saved and referenced here at the begining of the Phase A pipeline.  
 
-phasealist = simpleAsciiTableReader(file = "/Users/kcroxall/dtrans.lst") #UPDATE to the correct file location
+phasealist = simpleAsciiTableReader(file = "/home/kcroxall/veltest.lst") #UPDATE to the correct file location
+homename = "/home/kcroxall/"							#UPDATE to the correct file location
 ndim = phasealist[0].data.dimensions[0]
 verbose = 0
+postrans = 0
 for n in range(0,ndim):
+	name=str(phasealist[0].data[n]) 
+	slicedFrames = readSliced(name)
+	galname = slicedFrames.meta["object"].string
+	obsid = str(slicedFrames.meta["obsid"].long)
+	camera = slicedFrames.meta["camera"].string
+	print "transient correction"
+	slicedFrames2 = getSlicedCopy(slicedFrames)
+	#code from Kevin to trim unwanted data from red and blue frames based on gpr
+	if (camera == "SPECBLUE"):
+		nslice = slicedFrames2["MasterBlockTable"]["FramesNo"].data[slicedFrames2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+		qc = 0
+		for qq in range(0,nslice+1):
+			gpr = slicedFrames.refs[qq].product["Status"]["GPR"].data[0]
+			if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): del(slicedFrames2.refs[qc]) 
+			qc = qc+1
+			if (gpr > 660000)&(gpr < 690000) | (gpr > 930000)&(gpr < 950000) | (gpr > 200000)&(gpr < 260000): qc=qc-1
+	if (camera == "SPECRED"):
+		nslice = slicedFrames2["MasterBlockTable"]["FramesNo"].data[slicedFrames2["MasterBlockTable"]["FramesNo"].data.dimensions[0]-1]
+		qc = 0
+		for qq in range(0,nslice+1):
+			gpr = slicedFrames.refs[qq].product["Status"]["GPR"].data[0]
+			if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFrames2.refs[qc]) 
+			qc = qc+1
+			if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
+	slicedFrames = selectSlices(slicedFrames,scical="sci")
+	slicedFrames2 = selectSlices(slicedFrames2,scical="sci")
+	if verbose:slicedSummary(slicedFrames)
+	if verbose:slicedSummary(slicedFrames2)
+	ktrans_pos(slicedFrames2)
+	if verbose:
+		slicedSummary(slicedFrames2)
+		slice = 2
+		p5 = plotSignalBasic(slicedFrames2, slice=slice)
+		slice = 1
+		p5off = plotSignalBasic(slicedFrames2, slice=slice)
+		module = 12
+		p5 = plotTransient(slicedFrames2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
+	if postrans:
+		from herschel.ia.io.ascii import AsciiParser
+		atrt = AsciiTableReaderTask()
+		arrname = homename + galname+"_"+obsid+"_"+camera+"_posvel.tab"
+		posarr = atrt(file=arrname, parserDelim='\t', parserGuess=AsciiParser.GUESS_TRY,parserSkip=1)
+		slicedFrames2 = ktrans_frame_posvel_perpix(slicedFrames2,posarr)
+	else:slicedFrames2 = ktrans_frame(slicedFrames2)
+	if verbose:
+		slicedSummary(slicedFrames2)
+		slice = 2
+		p5 = plotSignalBasic(slicedFrames2, slice=slice)
+		slice = 1
+		p5off = plotSignalBasic(slicedFrames2, slice=slice)
+		module = 12
+		p5 = plotTransient(slicedFrames2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
+	p=PlotXY(slicedFrames.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames.refs[2].product["Signal"].data[2,12,:])
+	p[2]=LayerXY(slicedFrames2.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames2.refs[2].product["Signal"].data[2,12,:])
+	#end Kevin section	
+	print "Spectral Flat Fielding"
+	slicedFrames2 = specFlatFieldRange(slicedFrames2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)	#old version tested
+	slicedCubes = specFrames2PacsCube(slicedFrames2)
+	del(slicedFrames2,slicedFrames,qq,qc)
+	if verbose:slicedSummary(slicedCubes)
+	#slicedCubes_NOFF = getSlicedCopy(slicedCubes)								#New Version to test
+	## 1. Flag outliers and rebin
+	#waveGrid=wavelengthGrid(slicedCubes, oversample=2, upsample=1, calTree=calTree)
+	#slicedCubes = activateMasks(slicedCubes, String1d(["GLITCH","UNCLEANCHOP","NOISYPIXELS","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS"]), exclusive = True)
+	#slicedCubes = specFlagOutliers(slicedCubes, waveGrid, nSigma=5, nIter=2)
+	#slicedCubes = activateMasks(slicedCubes, String1d(["GLITCH","UNCLEANCHOP","NOISYPIXELS","RAWSATURATION","SATURATION","GRATMOVE", "OUTLIERS", "BADPIXELS"]), exclusive = True)
+	#slicedRebinnedCubesR = specWaveRebin(slicedCubes, waveGrid)
+	## 2. Mask the spectral lines
+	#widthDetect =  2.5
+	#threshold   = 10.
+	#print "find lines..."
+	#slicedCubesMask = slicedMaskLines(slicedCubes,slicedRebinnedCubes, widthDetect=widthDetect, widthMask=2.5, threshold=threshold, copy=1, verbose=verbose, maskType="INLINE")
+	##print "set lines..."
+	##slicedCubesMask = slicedMaskLines(slicedCubes,slicedRebinnedCubes, lineList=[157.7409,121.89757,205.17823,88.356,63.183705], widthDetect=widthDetect, widthMask=2.5, copy=1, verbose=verbose, maskType="INLINE")
+	## 3. Actual spectral flatfielding
+	#slopeInContinuum = 1
+	#slicedCubes = slicedSpecFlatFieldLine(slicedCubesMask, scaling=1, copy=1, maxrange=[50.,230.], slopeInContinuum=slopeInContinuum)
+	## 4. Rename mask OUTLIERS to OUTLIERS_1 (specFlagOutliers would refuse to overwrite OUTLIERS) & deactivate mask INLINE
+	#slicedCubes.renameMask("OUTLIERS", "OUTLIERS_1")
+	#slicedCubes = deactivateMasks(slicedCubes, String1d(["INLINE", "OUTLIERS_1"]))
+	#if verbose: maskSummary(slicedCubes, slice=0)
+	## 5. Remove intermediate results
+	#del waveGrid, slicedRebinnedCubes, slicedCubesMask
+	## --- End of Spectral Flat Fielding
+	#
 	# ------------------------------------------------------------------------------
 	#         Processing      Level 1 -> Level 2
 	# ------------------------------------------------------------------------------
 	# GET THE DATA
 	# If you instead begin here from a slicedCubes you saved to a pool with saveSlicedCopy, 
 	# then (using the poolName you set when saving):
-	name=str(phasealist[0].data[n]) 
-	slicedCubes = readSliced(name)
-	galname = slicedCubes.meta["object"].string
-	obsid = str(slicedCubes.meta["obsid"].long)
 	calTree=getCalTree()
 	#then do a for loop over the length of the array for the full processing...
 	linelist = Double1d()
@@ -75,31 +295,14 @@ for n in range(0,ndim):
 	for lineloop in range (0,linelist.dimensions[0]):
 		if (linewave[lineloop] > 190): 
 			linename = "NII205"
-			chanwidth = 45
-			linewidth = 0.18
-			linecent = 205.17823*(1+z)
 		if (linewave[lineloop] > 140)&(linewave[lineloop] < 190): 
 			linename = "CII"
-			linewidth = 0.18
-			chanwidth = 45
-			linecent = 157.7409*(1+z)
 		if (linewave[lineloop] > 100)&(linewave[lineloop] < 140): 
 			linename = "NII122"
-			chanwidth = 45
-			linewidth = 0.18
-			linecent = 121.89757*(1+z)
 		if (linewave[lineloop] > 75)&(linewave[lineloop] < 100): 
 			linename = "OIII"
-			chanwidth = 45
-			linewidth = 0.065
-			linecent = 88.356*(1+z)
 		if (linewave[lineloop] > 60)&(linewave[lineloop] < 75): 
 			linename = "OI"
-			chanwidth = 75
-			linewidth = 0.065
-			linecent = 63.183705*(1+z)
-		if verbose: slicedSummary(slicedCubes)
-#PHIL NOTED THAT CONTEXT LAYERS CHANGED IN 7.0.1786 MAKE SURE THINGS ARE READING AND REFERENCEING CORRECTLY
 		lineId      = [int(linelist[lineloop])]
 		wavelength  = []
 		rasterLine  = []
@@ -111,146 +314,6 @@ for n in range(0,ndim):
 		sCubesOn = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
 		onOff="OFF"
 		sCubesOff = selectSlices(slicedCubes, lineId=lineId, wavelength=wavelength, rasterLine=rasterLine,rasterCol=rasterCol, onOff=onOff, nodCycle=nodCycle, scical=scical, sliceNumber=sliceNumber, verbose=verbose)
-#pre-Ktrans plot
-		pos=getpositions(sCubesOn)
-		table = TableDataset()
-		ascii = AsciiTableTool()
-		table["Raster"] = Column(pos[2])
-		table["RA"] = Column(pos[0])
-		table["DEC"] = Column(pos[1])
-		ascii.formatter=FixedWidthFormatter(sizes=[10,25,25])
-		tabname = "/Users/kcroxall/" + galname + "_" + linename + "_pos.tab"   # UPDATE PATH
-		ascii.save(tabname, table)
-		wave = Double1d()
-		flux = Double1d()
-		reset = Double1d()
-		gpr = Double1d()
-		x=2
-		y=2
-		for i in range (0,sCubesOn.refs[0].product["wave"].data.dimensions[0]/16):
-			wave.append(sCubesOn.refs[0].product["wave"].data[1+i*16,x,y])
-			reset.append(sCubesOn.refs[0].product["Status"]["RESETINDEX"].data[1+i*16])
-			flux.append(sCubesOn.refs[0].product["flux"].data[1+i*16,x,y])
-			gpr.append(sCubesOn.refs[0].product["Status"]["GPR"].data[1+i*16])
-		ind = flux.where((wave<linecent-linewidth).or(wave>linecent+linewidth))
-		med=getMedian(flux)
-		p1=PlotXY(reset,flux,line=0,symbol = 5, symbolSize = 1,yrange=[med-30,med+75])
-		p1.xaxis.title.text="Time (Readout Counter)"
-		p1.yaxis.title.text="Signal [milibarts]"
-		p1.title.text="Raster 1, Spaxel 2-2, Pixel 1"
-		p1[100] = LayerXY(reset[ind], flux[ind],line=0, symbol = 14, symbolSize = 1)
-		y = Double1d(RESHAPE(gpr))
-		min_y = MIN(NAN_FILTER(y))
-		max_y = MAX(NAN_FILTER(y))
-		margin = 0.05 * (max_y - min_y)
-		y_start = min_y - margin - 75000
-		y_end = max_y + margin
-		p1[50] = LayerXY(reset, gpr, line=2, stroke=0.2, symbol=14, symbolSize=4,color=java.awt.Color.green,yrange = [y_start,y_end])
-		p1[50].yaxis.title.text="GPR"
-		plotname = galname + "_" + linename + "_" + obsid   + "_" + "preKtrans.eps"
-		p1.saveAsEPS(plotname)     #saves in the kcroxall directory
-		plotname = galname + "_" + linename + "_" + obsid   + "_" + "preKtrans.png"
-		p1.saveAsPNG(plotname)     #saves in the kcroxall directory
-###################### BETA VERSION of using the BASELINE AS AN OFF ######################################
-###################### Could be supplemented by the transient correction?
-###################### Needs a better model and to treats sharp jumps...
-		Dotcloudmod = getSlicedCopy(sCubesOn)
-		for rasti in range (0,Dotcloudmod.getRefs().size()):
-			print "Raster", rasti
-			for q in range (0,5):
-				print "X = ",q
-				for qq in range (0,5):
-#					print "Y = ", qq
-					for j in range (0,16):
-						wave = Double1d()
-						flux = Double1d()
-						fluxnew = Double1d()
-						reset = Double1d()
-						for i in range (0,Dotcloudmod.refs[rasti].product["wave"].data.dimensions[0]/16):
-							wave.append(Dotcloudmod.refs[rasti].product["wave"].data[j+i*16,qq,q])
-							reset.append(Dotcloudmod.refs[rasti].product["Status"]["RESETINDEX"].data[j+i*16])
-							flux.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-							fluxnew.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-						for pix in range (0,reset.dimensions[0]):
-							dist = ABS(reset[:] - reset[pix])
-							nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
-							subval = getMedian(flux[nearby])
-							flux2 = flux[nearby]
-							dist2 = ABS(flux2 - subval)
-							meandist2 = SUM(dist2)/dist2.dimensions[0]
-							nearby2 = dist2.where(dist2<meandist2)
-							subval2b = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
-							fluxnew[pix] = flux[pix]-subval2b
-						for i in range (0,Dotcloudmod.refs[rasti].product["wave"].data.dimensions[0]/16):
-							Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q] = fluxnew[i]	
-			print "cleaning garbage"
-			System.gc()
-		sCubesOn = getSlicedCopy(Dotcloudmod)
-		Dotcloudmod = getSlicedCopy(sCubesOff)
-		for rasti in range (0,Dotcloudmod.getRefs().size()):
-			print "Raster", rasti
-			for q in range (0,5):
-				print "X = ",q
-				for qq in range (0,5):
-#					print "Y = ", qq
-					for j in range (0,16):
-						wave = Double1d()
-						flux = Double1d()
-						fluxnew = Double1d()
-						reset = Double1d()
-						for i in range (0,Dotcloudmod.refs[rasti].product["wave"].data.dimensions[0]/16):
-							wave.append(Dotcloudmod.refs[rasti].product["wave"].data[j+i*16,qq,q])
-							reset.append(Dotcloudmod.refs[rasti].product["Status"]["RESETINDEX"].data[j+i*16])
-							flux.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-							fluxnew.append(Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q])
-						for pix in range (0,reset.dimensions[0]):
-							dist = ABS(reset[:] - reset[pix])
-							nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
-							subval = getMedian(flux[nearby])
-							flux2 = flux[nearby]
-							dist2 = ABS(flux2 - subval)
-							meandist2 = SUM(dist2)/dist2.dimensions[0]
-							nearby2 = dist2.where(dist2<meandist2)
-							subval2b = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
-							fluxnew[pix] = flux[pix]-subval2b
-						for i in range (0,Dotcloudmod.refs[rasti].product["wave"].data.dimensions[0]/16):
-							Dotcloudmod.refs[rasti].product["flux"].data[j+i*16,qq,q] = fluxnew[i]	
-			print "cleaning garbage"
-			System.gc()
-		sCubesOff = getSlicedCopy(Dotcloudmod)
-############################################################
-############################################################
-############################################################
-		wave = Double1d()
-		flux = Double1d()
-		reset = Double1d()
-		gpr = Double1d()
-		x=2
-		y=2
-		for i in range (0,sCubesOn.refs[0].product["wave"].data.dimensions[0]/16):
-			wave.append(sCubesOn.refs[0].product["wave"].data[1+i*16,x,y])
-			reset.append(sCubesOn.refs[0].product["Status"]["RESETINDEX"].data[1+i*16])
-			flux.append(sCubesOn.refs[0].product["flux"].data[1+i*16,x,y])
-			gpr.append(sCubesOn.refs[0].product["Status"]["GPR"].data[1+i*16])
-		ind = flux.where((wave<linecent-linewidth).or(wave>linecent+linewidth))
-		med=getMedian(flux)
-		p1=PlotXY(reset,flux,line=0,symbol = 5, symbolSize = 1,yrange=[med-30,med+75])
-		p1.xaxis.title.text="Time (Readout Counter)"
-		p1.yaxis.title.text="Signal [milibarts]"
-		p1.title.text="Raster 1, Spaxel 2-2, Pixel 1"
-		p1[100] = LayerXY(reset[ind], flux[ind],line=0, symbol = 14, symbolSize = 1)
-		y = Double1d(RESHAPE(gpr))
-		min_y = MIN(NAN_FILTER(y))
-		max_y = MAX(NAN_FILTER(y))
-		margin = 0.05 * (max_y - min_y)
-		y_start = min_y - margin - 75000
-		y_end = max_y + margin
-		p1[50] = LayerXY(reset, gpr, line=2, stroke=0.2, symbol=14, symbolSize=4,color=java.awt.Color.green,yrange = [y_start,y_end])
-		p1[50].yaxis.title.text="GPR"
-		plotname = galname + "_" + linename + "_" + obsid + "_" + "postKtrans.eps"
-		p1.saveAsEPS(plotname)     #saves in the kcroxall directory
-		plotname = galname + "_" + linename + "_" + obsid + "_" + "postKtrans.png"
-		p1.saveAsPNG(plotname)     #saves in the kcroxall directory
 		if verbose: 
 			slicedSummary(sCubesOn)
 			slicedSummary(sCubesOff)
@@ -260,7 +323,6 @@ for n in range(0,ndim):
 			plotMasks = String1d(["GLITCH"])
 			p6b = plotCubes(sCubesOn,[],x=x,y=y,masks=sCubesOn.refs[0].product.maskTypes)
 			p6b = plotCubesMasks(sCubesOn,p6b,x=x,y=y,masks=plotMasks)
-			plotname = galname + "_" + linename + "_" + obsid  + "pretrim.eps"
 		wave = Double1d()
 		flux = Double1d()
 		reset = Double1d()
@@ -283,9 +345,9 @@ for n in range(0,ndim):
 		p10.yaxis.title.text="Signal [milibarts]"
 		p10.title.text="Raster 1, Spaxel 2-2, All Pixels"
 		plotname = galname + "_" + linename + "_" + obsid  + "_centspax.eps"
-		p10.saveAsEPS(plotname)     #saves in the kcroxall directory
+		p10.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_centspax.png"
-		p10.saveAsPNG(plotname)     #saves in the kcroxall directory
+		p10.saveAsPNG(plotname)     #saves in the home directory
 		waveGrid=wavelengthGrid(sCubesOn.refs[1].product, oversample=2, upsample=1, calTree = calTree)
 		sCubesOn  = activateMasks(sCubesOn, String1d(["GLITCH","UNCLEANCHOP","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS"]), exclusive = True)
 		sCubesOn  = specFlagOutliers(sCubesOn, waveGrid, nSigma=3, nIter=4,saveStats=1)
@@ -296,15 +358,14 @@ for n in range(0,ndim):
 			p7 = plotCubes(sCubesOn,[],x=x,y=y,masks=sCubesOn.refs[0].product.maskTypes, symbol = 14, symbolSize = 1)
 			plotMasks = String1d(["OUTLIERS"])
 			p7 = plotCubesMasks(sCubesOn,p7,x=x,y=y,masks=plotMasks)
-#			p7.saveAsEPS(plotname)     #saves in the kcroxall directory
 		p8 = plotCubes(sCubesOn,[],x=2,y=2,masks=sCubesOn.refs[0].product.maskTypes, symbol = 14, symbolSize = 1)
 		p8.xaxis.title.text="Wavelength [microns]"
 		p8.yaxis.title.text="Signal [milibarts]"
 		p8.title.text="All Rasters, Spaxel 2-2, Outliers Clipped"
 		plotname = galname + "_" + linename + "_" + obsid  + "_rebinFLG.eps"
-		p8.saveAsEPS(plotname)     #saves in the kcroxall directory
+		p8.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_rebinFLG.png"
-		p8.saveAsPNG(plotname)     #saves in the kcroxall directory
+		p8.saveAsPNG(plotname)     #saves in the home directory
 		sCubesOn  = activateMasks(sCubesOn, String1d(["GLITCH","UNCLEANCHOP","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS", "OUTLIERS"]), exclusive = True)
 		slicedRebinnedCubesOn = specWaveRebin(sCubesOn, waveGrid)
 		sCubesOff = activateMasks(sCubesOff, String1d(["GLITCH","UNCLEANCHOP","RAWSATURATION","SATURATION","GRATMOVE", "BADPIXELS", "OUTLIERS"]), exclusive = True)
@@ -315,19 +376,11 @@ for n in range(0,ndim):
 			# Sky footprint: the second is overplotted on the first, p8 is first created and then replotted on
 			p8 = plotCubesRaDec(slicedRebinnedCubesOn)
 			p8 = plotCubesRaDec(slicedRebinnedCubesOff,p8)
-			plotname = galname + "_" + linename + "_" + obsid  + "_radec.eps"
-#			p8.saveAsEPS(plotname)     #saves in the kcroxall directory
 		slicedRebinnedCubesOn  = specAverageCubes(slicedRebinnedCubesOn)
 		slicedRebinnedCubesOff = specAverageCubes(slicedRebinnedCubesOff)
 		p9 = plotCubes(slicedRebinnedCubesOn,[],x=2,y=2,title="All Rasters, central position",symbol = 14, symbolSize = 3)
 		p9.xaxis.title.text="Wavelength [microns]"
 		p9.yaxis.title.text="Signal [milibarts]"
-		lowv = Double1d(2)
-		hiwv = Double1d(2)
-		lowv[0] = linecent - linewidth
-		lowv[1] = linecent - linewidth
-		hiwv[0] = linecent + linewidth
-		hiwv[1] = linecent + linewidth
 		for i in range (0,slicedRebinnedCubesOn.getRefs().size()):
 			p9[i].line=2
 		exp = Double1d(RESHAPE(slicedRebinnedCubesOn.refs[0].product["exposure"].data[:,2,2]))
@@ -339,16 +392,11 @@ for n in range(0,ndim):
 		exp_start = min_exp - margin
 		exp_end = max_exp + margin
 		p9[100] = LayerXY(slicedRebinnedCubesOn.refs[0].product["waveGrid"].data,slicedRebinnedCubesOn.refs[0].product["exposure"].data[:,2,2]/tmp,color=java.awt.Color.black,yrange = [exp_start,exp_end])
-		bar = Double1d(2)
-		bar[0]=0
-		bar[1]=1
-		p9[200] = LayerXY(lowv,bar,color=java.awt.Color.black,line=3,yrange = [exp_start,exp_end])
-		p9[201] = LayerXY(hiwv,bar,color=java.awt.Color.black,line=3,yrange = [exp_start,exp_end])
 		p9[100].yaxis.title.text="EXPOSURE DEPTH"
 		plotname = galname + "_" + linename + "_" + obsid  + "_allRastWave.eps"
-		p9.saveAsEPS(plotname)     #saves in the kcroxall directory
+		p9.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_allRastWave.png"
-		p9.saveAsPNG(plotname)     #saves in the kcroxall directory
+		p9.saveAsPNG(plotname)     #saves in the home directory
 		if verbose:
 			x,y = 2,2
 			# here we are adding to a previously created plot, but if you deleted plot "p6" from above, then first
@@ -360,7 +408,7 @@ for n in range(0,ndim):
 		slicedRebinnedCubesOnERR = getSlicedCopy(slicedRebinnedCubesOn)
 		for slice in range(len(slicedRebinnedCubesOnERR.refs)):
 			slicedRebinnedCubesOnERR.refs[slice].product["image"].data = slicedRebinnedCubesOnERR.refs[slice].product["stddev"].data / SQRT(slicedRebinnedCubesOnERR.refs[slice].product["exposure"].data)
-# Subtract the off.  
+		print 'Subtract the off'
 		slicedDiffCubes = getSlicedCopy(slicedRebinnedCubesOn)
 		if (len(slicedRebinnedCubesOff.refs) > 2):
 			image = slicedRebinnedCubesOff.refs[1].product.image
@@ -372,16 +420,13 @@ for n in range(0,ndim):
 		if (len(slicedRebinnedCubesOff.refs) == 2):slicedRebinnedCubesOff.refs[0].product.image = slicedRebinnedCubesOff.refs[1].product.image
 		for slice in range(len(slicedRebinnedCubesOn.refs)):
 			slicedDiffCubes.refs[slice].product.setFlux(slicedRebinnedCubesOn.refs[slice].product.image - slicedRebinnedCubesOff.refs[0].product.image)
-#deal with more than 1 off cube in the data...
-# ADD IN A TEST TO DETERMINE THE CLOSEST OFF...
+			# ADD IN A TEST TO DETERMINE THE CLOSEST OFF...  Rather than averaging them???
 		Spectrum = extractSpaxelSpectrum(slicedDiffCubes, slice=slice, spaxelX=2, spaxelY=2)
 		sumflux = Spectrum.flux*0
 		plot = PlotXY()
 		for slice in range(len(slicedRebinnedCubesOn.refs)):
 			for i in range (0,5):
 				for j in range (0,5):
-#					spaxelX = i
-#					spaxelY = j
 					Spectrum = extractSpaxelSpectrum(slicedDiffCubes, slice=slice, spaxelX=i, spaxelY=j)
 					layer = LayerXY(Spectrum.wave,Spectrum.flux)
 					plot.addLayer(layer)
@@ -394,37 +439,34 @@ for n in range(0,ndim):
 		plotav.xaxis.title.text="Wavelength [microns]"
 		plotav.yaxis.title.text="Signal [milibarts]"
 		plotname = galname + "_" + linename + "_" + obsid  + "_allSpec.eps"
-		plot.saveAsEPS(plotname)     #saves in the kcroxall directory
+		plot.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_allSpec.png"
-		plot.saveAsPNG(plotname)     #saves in the kcroxall directory
+		plot.saveAsPNG(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_avSpec.eps"
-		plotav.saveAsEPS(plotname)     #saves in the kcroxall directory
+		plotav.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_avSpec.png"
-		plotav.saveAsPNG(plotname)     #saves in the kcroxall directory
-		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_ktrans"
+		plotav.saveAsPNG(plotname)     #saves in the home directory
+		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_novel"
 		saveSlicedCopy(slicedDiffCubes,name)
-		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_ktrans"
+		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_novel"
 		saveSlicedCopy(slicedRebinnedCubesOnERR,name)
-	del(x,y,y_end,y_start,waveGrid,wavelength,tmp,sumflux,sum,Spectrum,slicedRebinnedCubesOn,bar,exp,exp_end,exp_start,gpr,hiwv,ind,i,j,layer,linecent,lineId,lineloop,linewidth,lowv,margin,max_exp,max_y,med,min_exp,min_y,nodCycle,p1,p10,p8,p9,plot,plotav,qq,rasterCol,rasterLine)
-	del(sCubesOff,sCubesOn,slice,slicedDiffCubes,slicedRebinnedCubesOff,scical,slicedRebinnedCubesOnERR,wave,sliceNumber,reset,plotname,onOff,flux,count)
+	del(waveGrid,wavelength,tmp,sumflux,sum,Spectrum,slicedRebinnedCubesOn,exp,exp_end,exp_start,gpr,i,j,layer,lineloop,max_exp,med,min_exp,nodCycle,p10,p8,p9,plot,plotav,qq,rasterCol,rasterLine,sCubesOff,sCubesOn,slice,slicedDiffCubes,slicedRebinnedCubesOff,scical,slicedRebinnedCubesOnERR,wave,sliceNumber,reset,plotname,onOff,flux,count)
 
+
+print "you have arrived"
+
+print "CONGRATULATIONS! Phase B complete!"
 #projectedCube_1 = specProject(slicedDiffCubes.refs[0].product, outputPixelsize=2.85)
 #projectedCube_2 = specProject(slicedDiffCubes.refs[1].product, outputPixelsize=2.85)
 #projectedCube_3 = specProject(slicedDiffCubes.refs[2].product, outputPixelsize=2.85)
 #projectedCube_4 = specProject(slicedDiffCubes.refs[3].product, outputPixelsize=2.85)
 #projectedCube_diff = specProject(slicedDiffCubes, outputPixelsize=2.85)
 
-# End Phase B
-
-print "you have arrived"
-
-print "CONGRATULATIONS! Phase B complete!"
-
 ################################################
 #                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
-#      BETA version tested in HIPE 8.0.2050    #
+#      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Oct 26, 2011                  #
+#                Dec 06, 2011                  #
 ################################################
