@@ -1,10 +1,9 @@
 ################################################
-#                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Dec 06, 2011                  #
+#                Dec 21, 2011                  #
 ################################################
 def getMedian(numericValues):
   theValues = SORT(numericValues)
@@ -27,7 +26,6 @@ def ktrans_pos(frame):
 	camera = slicedFrames.meta["camera"].string
 	for rasti in range (0,frame.getRefs().size()):
 		for spatialpix in range (0,25):
-			#print "Spatial Pixel ",spatialpix
 			RApix = getMedian(frame.refs[rasti].product["Ra"].data[8,spatialpix,:])
 			DECpix = getMedian(frame.refs[rasti].product["Dec"].data[8,spatialpix,:])
 			raarray.append(RApix)
@@ -45,7 +43,7 @@ def ktrans_pos(frame):
 def ktrans_frame(frame):
 	z=frame.meta["redshiftValue"].double/300000
 	for rasti in range (0,frame.getRefs().size()):
-		print "Raster", rasti
+		print "Raster", rasti, " of",frame.getRefs().size()-1
 		wavecent = ((frame.refs[rasti].product["BlockTable"]["MinWave"].data[0] + frame.refs[rasti].product["BlockTable"]["MaxWave"].data[0])/2)
 		chanwidth = 75
 		linewidth = 0.03
@@ -70,11 +68,8 @@ def ktrans_frame(frame):
 			chanwidth = 75
 			linewidth = 0.065
 			linecent = 63.183705*(1+z)
-		#print "Line at ", linecent
 		for spatialpix in range (0,25):
-			#print "Spatial Pixel ",spatialpix
 			for specpix in range (1,17):
-				#print "Spectral Pixel ", specpix
 				wave = frame.refs[rasti].product["Wave"].data[specpix,spatialpix,:]
 				flux = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
 				fluxnew = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
@@ -94,13 +89,11 @@ def ktrans_frame(frame):
 						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
-			System.gc()
-	del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
 	return (frame)
 
 def ktrans_frame_posvel_perpix(frame,table):
 	counter = 0
-	z=frame.meta["redshiftValue"].double/300000
+	zgal=frame.meta["redshiftValue"].double/300000
 	for rasti in range (0,frame.getRefs().size()):
 		print "Raster", rasti, " of",frame.getRefs().size()-1
 		wavecent = ((frame.refs[rasti].product["BlockTable"]["MinWave"].data[0] + frame.refs[rasti].product["BlockTable"]["MaxWave"].data[0])/2)
@@ -110,46 +103,52 @@ def ktrans_frame_posvel_perpix(frame,table):
 		stepsize = 0.006241358
 		rastline = .00001
 		if (wavecent > 190): 
-			chanwidth = 45
+			chanwidtht = 60
 			rastline = 205.17823
-			linewidth = 0.11
-			stepsize = 0.004068376
+			linewidtht = 0.115  #inst - 0.105
+			stepsize = 0.00406
 		if (wavecent > 150)&(wavecent < 170): 
-			chanwidth = 35
+			chanwidtht = 40 #bol -42
 			rastline = 157.7409
-			linewidth = 0.13
-			stepsize = 0.006241358
+			linewidtht = 0.15 #bol - 0.14 # inst - 0.126
+			stepsize = 0.0062
 		if (wavecent > 110)&(wavecent < 130): 
-			chanwidth = 30
+			chanwidtht = 45
 			rastline = 121.89757
-			linewidth = 0.12
-			stepsize = 0.007201311
+			linewidtht = 0.14  #inst - 0.118
+			stepsize = 0.0072
 		if (wavecent > 75)&(wavecent < 95): 
-			chanwidth = 33
+			chanwidtht = 45
 			rastline = 88.356
-			linewidth = 0.04
-			stepsize = 0.002169228
+			linewidtht =0.042 #inst - 0.037
+			stepsize = 0.002
 		if (wavecent > 60)&(wavecent < 70): 
-			chanwidth = 50
+			chanwidtht = 55
 			rastline =  63.183705
-			linewidth = 0.03
-			stepsize = 0.001157611
+			linewidtht = 0.025 #inst - 0.018
+			stepsize = 0.001
 		print "Line at ", rastline
 		for spatialpix in range (0,25):
-			medvel=float(posarr[0].data[counter][31:35])
-			minvel=float(posarr[0].data[counter][37:42])
-			maxvel=float(posarr[0].data[counter][45:51])
+			medvel=float(posarr[4].data[counter])
+			minvel=float(posarr[5].data[counter])
+			maxvel=float(posarr[6].data[counter])
 			counter += 1
 			z = medvel/300000
+			if (z == 0): z=zgal		#gaurd against vel=0/NaN values in the vel files.... hopefully will go away...
 			zmin = minvel/300000
 			zmax = maxvel/300000
 			linecent = rastline*(1+z)
-			linemax = rastline*(1+zmax)
-			linemin = rastline*(1+zmin)
-			if (linewidth < linemax-linemin):linewidth = linemax-linemin
+			linemax = 157.7409*(1+zmax)
+			linemin = 157.7409*(1+zmin)
+			if (0.7 < (linemax-linemin)/2):
+				ratio = ((linemax-linemin)/2) / 0.18
+				linewidth = linewidtht*ratio
+				chanwidth = 2*linewidth/stepsize
+			else: 
+				linewidth=linewidtht
+				chanwidth=chanwidtht
 			if (linecent != linecent):linecent=wavecent
-			if (linewidth < linemax-linemin):chanwidth = 1.6*linewidth/stepsize
-			print "Spatial Pixel ",spatialpix," LineCenter ",linecent," LineWidth ",linewidth," ChanWidth ",chanwidth," CalcChanWidth ",1.6*linewidth/stepsize
+			print "Spatial Pixel ",spatialpix," LineCenter ",linecent," FWHM ",linewidth," BolattoFWHM_CII ",(linemax-linemin)/2," ChanWidth ",chanwidth," CalcChanWidth ",2*linewidth/stepsize
 			for specpix in range (1,17):
 				#print "Spectral Pixel ", specpix
 				wave = frame.refs[rasti].product["Wave"].data[specpix,spatialpix,:]
@@ -160,19 +159,18 @@ def ktrans_frame_posvel_perpix(frame,table):
 				if (flux[33] == flux[33])&(flux[53] == flux[53]):
 					for pix in range (0,reset.dimensions[0]-1):
 						dist = ABS(reset[:] - reset[pix])
-						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth/2).or(wave>linecent+linewidth/2)))
+						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
 						subval = getMedian(flux[nearby])
 						flux2 = flux[nearby]
 						dist2 = ABS(flux2 - subval)
 						mask = dist2.where(IS_FINITE)
 						dist2c = dist2[mask]
 						meandist2 = SUM(dist2c)/dist2c.dimensions[0]
-						nearby2 = dist2.where(dist2<meandist2)
+						#meandist2 = getMedian(dist2c)
+						nearby2 = dist2c.where(dist2<meandist2+2)
 						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
-			System.gc()
-	del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
 	return (frame)
 
 # A list of the Phase A pools that are to be processed
@@ -213,6 +211,7 @@ for n in range(0,ndim):
 	if verbose:slicedSummary(slicedFrames)
 	if verbose:slicedSummary(slicedFrames2)
 	ktrans_pos(slicedFrames2)
+	slicedFrames = getSlicedCopy(slicedFrames2)
 	if verbose:
 		slicedSummary(slicedFrames2)
 		slice = 2
@@ -224,7 +223,7 @@ for n in range(0,ndim):
 	if postrans:
 		from herschel.ia.io.ascii import AsciiParser
 		atrt = AsciiTableReaderTask()
-		arrname = homename + galname+"_"+obsid+"_"+camera+"_posvel.tab"
+		arrname = homename + galname+"_"+obsid+"_"+camera+"_veltab.txt"
 		posarr = atrt(file=arrname, parserDelim='\t', parserGuess=AsciiParser.GUESS_TRY,parserSkip=1)
 		slicedFrames2 = ktrans_frame_posvel_perpix(slicedFrames2,posarr)
 	else:slicedFrames2 = ktrans_frame(slicedFrames2)
@@ -373,7 +372,6 @@ for n in range(0,ndim):
 		if verbose:
 			slicedSummary(slicedRebinnedCubesOn)
 			slicedSummary(slicedRebinnedCubesOff)
-			# Sky footprint: the second is overplotted on the first, p8 is first created and then replotted on
 			p8 = plotCubesRaDec(slicedRebinnedCubesOn)
 			p8 = plotCubesRaDec(slicedRebinnedCubesOff,p8)
 		slicedRebinnedCubesOn  = specAverageCubes(slicedRebinnedCubesOn)
@@ -399,10 +397,8 @@ for n in range(0,ndim):
 		p9.saveAsPNG(plotname)     #saves in the home directory
 		if verbose:
 			x,y = 2,2
-			# here we are adding to a previously created plot, but if you deleted plot "p6" from above, then first
 			p6 = plotCubes(sCubesOn,[],x=x,y=y,masks=sCubesOn.refs[0].product.maskTypes)
 			p6 = plotCubes(sCubesOff,p6,x=x,y=y,masks=sCubesOff.refs[0].product.maskTypes)
-			# and then
 			p6.addLayer(LayerXY(slicedRebinnedCubesOn.refs[0].product["waveGrid"].data,slicedRebinnedCubesOn.refs[0].product["image"].data[:,x,y]))
 			p6.addLayer(LayerXY(slicedRebinnedCubesOff.refs[0].product["waveGrid"].data,slicedRebinnedCubesOff.refs[0].product["image"].data[:,x,y]))
 		slicedRebinnedCubesOnERR = getSlicedCopy(slicedRebinnedCubesOn)
@@ -446,9 +442,9 @@ for n in range(0,ndim):
 		plotav.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_avSpec.png"
 		plotav.saveAsPNG(plotname)     #saves in the home directory
-		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_novel"
+		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_nopos18"
 		saveSlicedCopy(slicedDiffCubes,name)
-		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_novel"
+		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_nopos18"
 		saveSlicedCopy(slicedRebinnedCubesOnERR,name)
 	del(waveGrid,wavelength,tmp,sumflux,sum,Spectrum,slicedRebinnedCubesOn,exp,exp_end,exp_start,gpr,i,j,layer,lineloop,max_exp,med,min_exp,nodCycle,p10,p8,p9,plot,plotav,qq,rasterCol,rasterLine,sCubesOff,sCubesOn,slice,slicedDiffCubes,slicedRebinnedCubesOff,scical,slicedRebinnedCubesOnERR,wave,sliceNumber,reset,plotname,onOff,flux,count)
 
@@ -463,10 +459,9 @@ print "CONGRATULATIONS! Phase B complete!"
 #projectedCube_diff = specProject(slicedDiffCubes, outputPixelsize=2.85)
 
 ################################################
-#                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Dec 06, 2011                  #
+#                Dec 21, 2011                  #
 ################################################
