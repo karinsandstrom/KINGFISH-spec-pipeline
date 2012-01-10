@@ -1,9 +1,10 @@
 ################################################
+#                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Dec 21, 2011                  #
+#                Jan 10, 2011                  #
 ################################################
 def getMedian(numericValues):
   theValues = SORT(numericValues)
@@ -89,6 +90,8 @@ def ktrans_frame(frame):
 						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
+		System.gc()
+	del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
 	return (frame)
 
 def ktrans_frame_posvel_perpix(frame,table):
@@ -108,7 +111,7 @@ def ktrans_frame_posvel_perpix(frame,table):
 			linewidtht = 0.115  #inst - 0.105
 			stepsize = 0.00406
 		if (wavecent > 150)&(wavecent < 170): 
-			chanwidtht = 40 #bol -42
+			chanwidtht = 42 #bol -42
 			rastline = 157.7409
 			linewidtht = 0.15 #bol - 0.14 # inst - 0.126
 			stepsize = 0.0062
@@ -129,9 +132,9 @@ def ktrans_frame_posvel_perpix(frame,table):
 			stepsize = 0.001
 		print "Line at ", rastline
 		for spatialpix in range (0,25):
-			medvel=float(posarr[4].data[counter])
-			minvel=float(posarr[5].data[counter])
-			maxvel=float(posarr[6].data[counter])
+			medvel=float(table[4].data[counter])
+			minvel=float(table[5].data[counter])
+			maxvel=float(table[6].data[counter])
 			counter += 1
 			z = medvel/300000
 			if (z == 0): z=zgal		#gaurd against vel=0/NaN values in the vel files.... hopefully will go away...
@@ -140,8 +143,8 @@ def ktrans_frame_posvel_perpix(frame,table):
 			linecent = rastline*(1+z)
 			linemax = 157.7409*(1+zmax)
 			linemin = 157.7409*(1+zmin)
-			if (0.7 < (linemax-linemin)/2):
-				ratio = ((linemax-linemin)/2) / 0.18
+			if (0.15 < (linemax-linemin)/2):
+				ratio = ((linemax-linemin)/2) / 0.15
 				linewidth = linewidtht*ratio
 				chanwidth = 2*linewidth/stepsize
 			else: 
@@ -156,6 +159,7 @@ def ktrans_frame_posvel_perpix(frame,table):
 				fluxnew = frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:]
 				reset = frame.refs[rasti].product["Status"]["RESETINDEX"].data[:]
 				continuum = getMedian(flux)
+				#print "Spatial Pix ", spatialpix, " Spectral Pixel ", specpix, " Continuum ", continuum, " raster ", rasti, " linewidth = ",linewidth 
 				if (flux[33] == flux[33])&(flux[53] == flux[53]):
 					for pix in range (0,reset.dimensions[0]-1):
 						dist = ABS(reset[:] - reset[pix])
@@ -171,23 +175,25 @@ def ktrans_frame_posvel_perpix(frame,table):
 						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
+			#System.gc()
+	#del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
 	return (frame)
 
 # A list of the Phase A pools that are to be processed
 # need to be saved and referenced here at the begining of the Phase A pipeline.  
 
-phasealist = simpleAsciiTableReader(file = "/home/kcroxall/veltest.lst") #UPDATE to the correct file location
+phasealist = simpleAsciiTableReader(file = "/home/kcroxall/phaseA_dec22.lst") #UPDATE to the correct file location
 homename = "/home/kcroxall/"							#UPDATE to the correct file location
 ndim = phasealist[0].data.dimensions[0]
 verbose = 0
-postrans = 0
-for n in range(0,ndim):
+postrans = 1
+for n in range(41,ndim):
 	name=str(phasealist[0].data[n]) 
 	slicedFrames = readSliced(name)
 	galname = slicedFrames.meta["object"].string
 	obsid = str(slicedFrames.meta["obsid"].long)
 	camera = slicedFrames.meta["camera"].string
-	print "transient correction"
+	print "transient correction for ", n 
 	slicedFrames2 = getSlicedCopy(slicedFrames)
 	#code from Kevin to trim unwanted data from red and blue frames based on gpr
 	if (camera == "SPECBLUE"):
@@ -223,7 +229,7 @@ for n in range(0,ndim):
 	if postrans:
 		from herschel.ia.io.ascii import AsciiParser
 		atrt = AsciiTableReaderTask()
-		arrname = homename + galname+"_"+obsid+"_"+camera+"_veltab.txt"
+		arrname = homename + "tables/" + galname+"_"+obsid+"_"+camera+"_veltab.txt"
 		posarr = atrt(file=arrname, parserDelim='\t', parserGuess=AsciiParser.GUESS_TRY,parserSkip=1)
 		slicedFrames2 = ktrans_frame_posvel_perpix(slicedFrames2,posarr)
 	else:slicedFrames2 = ktrans_frame(slicedFrames2)
@@ -235,8 +241,15 @@ for n in range(0,ndim):
 		p5off = plotSignalBasic(slicedFrames2, slice=slice)
 		module = 12
 		p5 = plotTransient(slicedFrames2, slice=slice, module=module, color=java.awt.Color.black, title="Slice "+str(slice)+" Module = "+str(module))
-	p=PlotXY(slicedFrames.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames.refs[2].product["Signal"].data[2,12,:])
-	p[2]=LayerXY(slicedFrames2.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames2.refs[2].product["Signal"].data[2,12,:])
+	p=PlotXY(slicedFrames.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames.refs[2].product["Signal"].data[2,12,:],line=0,symbol = 5, symbolSize = 2)
+	p[2]=LayerXY(slicedFrames2.refs[2].product["Status"]["RESETINDEX"].data,slicedFrames2.refs[2].product["Signal"].data[2,12,:],line=0,symbol = 5, symbolSize = 2)
+	p.xaxis.title.text="Time [Reset Counter]"
+	p.yaxis.title.text="Signal [milibarts]"
+	p.title.text="Raster 2, Spaxel 12, Pixel 2"
+	plotname = galname + "_" + camera + "_" + obsid  + "_transex.eps"
+	p.saveAsEPS(plotname)     #saves in the home directory
+	plotname = galname + "_" + camera + "_" + obsid  + "_transex.png"
+	p.saveAsPNG(plotname)     #saves in the home directory
 	#end Kevin section	
 	print "Spectral Flat Fielding"
 	slicedFrames2 = specFlatFieldRange(slicedFrames2,polyOrder=5, minWaveRangeForPoly=4., verbose=1)	#old version tested
@@ -271,11 +284,7 @@ for n in range(0,ndim):
 	# ------------------------------------------------------------------------------
 	#         Processing      Level 1 -> Level 2
 	# ------------------------------------------------------------------------------
-	# GET THE DATA
-	# If you instead begin here from a slicedCubes you saved to a pool with saveSlicedCopy, 
-	# then (using the poolName you set when saving):
 	calTree=getCalTree()
-	#then do a for loop over the length of the array for the full processing...
 	linelist = Double1d()
 	linelist.append(slicedCubes.refs[1].product["BlockTable"]['LineId'].data[0])
 	for i in range (2,slicedCubes.getRefs().size()):
@@ -442,9 +451,9 @@ for n in range(0,ndim):
 		plotav.saveAsEPS(plotname)     #saves in the home directory
 		plotname = galname + "_" + linename + "_" + obsid  + "_avSpec.png"
 		plotav.saveAsPNG(plotname)     #saves in the home directory
-		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_nopos18"
+		name=galname + "_"+linename + "_" + obsid +"_suboff_pipe_PhaseB_veltun15"
 		saveSlicedCopy(slicedDiffCubes,name)
-		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_nopos18"
+		name=galname + "_"+linename + "_" + obsid +"_err_pipe_PhaseB_veltun15"
 		saveSlicedCopy(slicedRebinnedCubesOnERR,name)
 	del(waveGrid,wavelength,tmp,sumflux,sum,Spectrum,slicedRebinnedCubesOn,exp,exp_end,exp_start,gpr,i,j,layer,lineloop,max_exp,med,min_exp,nodCycle,p10,p8,p9,plot,plotav,qq,rasterCol,rasterLine,sCubesOff,sCubesOn,slice,slicedDiffCubes,slicedRebinnedCubesOff,scical,slicedRebinnedCubesOnERR,wave,sliceNumber,reset,plotname,onOff,flux,count)
 
@@ -459,9 +468,10 @@ print "CONGRATULATIONS! Phase B complete!"
 #projectedCube_diff = specProject(slicedDiffCubes, outputPixelsize=2.85)
 
 ################################################
+#                                              #
 #    PHASE B: KINGFISH Spectroscopic Pipeline  #
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Dec 21, 2011                  #
+#                Jan 10, 2011                  #
 ################################################
