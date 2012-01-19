@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Jan 10, 2011                  #
+#                Jan 19, 2012                  #
 ################################################
 def getMedian(numericValues):
   theValues = SORT(numericValues)
@@ -38,7 +38,7 @@ def ktrans_pos(frame):
 	table["RA"] = Column(raarray)
 	table["DEC"] = Column(decarray)
 	ascii.formatter=FixedWidthFormatter(sizes=[10,10,25,25])
-	tabname = "/home/kcroxall/" + galname + "_" + obsid + "_" + camera + "_postest.tab"   # UPDATE PATH
+	tabname = homename + galname + "_" + obsid + "_" + camera + "_postest.tab"   # UPDATE PATH
 	ascii.save(tabname, table)
 
 def ktrans_frame(frame):
@@ -162,6 +162,7 @@ def ktrans_frame_posvel_perpix(frame,table):
 				#print "Spatial Pix ", spatialpix, " Spectral Pixel ", specpix, " Continuum ", continuum, " raster ", rasti, " linewidth = ",linewidth 
 				if (flux[33] == flux[33])&(flux[53] == flux[53]):
 					for pix in range (0,reset.dimensions[0]-1):
+						#print pix
 						dist = ABS(reset[:] - reset[pix])
 						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
 						subval = getMedian(flux[nearby])
@@ -175,9 +176,8 @@ def ktrans_frame_posvel_perpix(frame,table):
 						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
-			#System.gc()
-	#del(wave,flux,fluxnew,reset,spatialpix,specpix,rasti,dist,nearby,subval,flux2,dist2,meandist2,nearby2,subval2)
 	return (frame)
+
 
 # A list of the Phase A pools that are to be processed
 # need to be saved and referenced here at the begining of the Phase A pipeline.  
@@ -187,7 +187,7 @@ homename = "/home/kcroxall/"							#UPDATE to the correct file location
 ndim = phasealist[0].data.dimensions[0]
 verbose = 0
 postrans = 1
-for n in range(41,ndim):
+for n in range(0,ndim):
 	name=str(phasealist[0].data[n]) 
 	slicedFrames = readSliced(name)
 	galname = slicedFrames.meta["object"].string
@@ -212,6 +212,9 @@ for n in range(41,ndim):
 			if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): del(slicedFrames2.refs[qc]) 
 			qc = qc+1
 			if (gpr > 380000)&(gpr < 420000) | (gpr > 500000)&(gpr < 540000): qc=qc-1
+	if (slicedFrames2.getRefs().size() < 2): 
+		print "I need valid data to make this work"
+		continue
 	slicedFrames = selectSlices(slicedFrames,scical="sci")
 	slicedFrames2 = selectSlices(slicedFrames2,scical="sci")
 	if verbose:slicedSummary(slicedFrames)
@@ -473,5 +476,5 @@ print "CONGRATULATIONS! Phase B complete!"
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Jan 10, 2011                  #
+#                Jan 19, 2012                  #
 ################################################
