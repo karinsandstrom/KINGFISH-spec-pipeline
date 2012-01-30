@@ -4,7 +4,7 @@
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Jan 19, 2012                  #
+#                Jan 27, 2012                  #
 ################################################
 def getMedian(numericValues):
   theValues = SORT(numericValues)
@@ -165,15 +165,19 @@ def ktrans_frame_posvel_perpix(frame,table):
 						#print pix
 						dist = ABS(reset[:] - reset[pix])
 						nearby = dist.where((dist<chanwidth).and((wave<linecent-linewidth).or(wave>linecent+linewidth)))
-						subval = getMedian(flux[nearby])
-						flux2 = flux[nearby]
-						dist2 = ABS(flux2 - subval)
-						mask = dist2.where(IS_FINITE)
-						dist2c = dist2[mask]
-						meandist2 = SUM(dist2c)/dist2c.dimensions[0]
-						#meandist2 = getMedian(dist2c)
-						nearby2 = dist2c.where(dist2<meandist2+2)
-						subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
+						if (len(flux[nearby]) == 0):
+							print "BoyHowdy, there is nothing near this damn point!!!"
+							subval2 = 99#continuum
+						else:
+							subval = getMedian(flux[nearby])
+							flux2 = flux[nearby]
+							dist2 = ABS(flux2 - subval)
+							mask = dist2.where(IS_FINITE)
+							dist2c = dist2[mask]
+							meandist2 = SUM(dist2c)/dist2c.dimensions[0]
+							#meandist2 = getMedian(dist2c)
+							nearby2 = dist2c.where(dist2<meandist2+2)
+							subval2 = SUM(flux2[nearby2])/flux2[nearby2].dimensions[0]
 						fluxnew[pix] = flux[pix]-subval2#+continuum
 				frame.refs[rasti].product["Signal"].data[specpix,spatialpix,:] = fluxnew[:]
 	return (frame)
@@ -476,5 +480,5 @@ print "CONGRATULATIONS! Phase B complete!"
 #      BETA version tested in HIPE 8.0.3215    #
 #         person to blame: Kevin Croxall       #
 #            (aside from the NHSC)             #
-#                Jan 19, 2012                  #
+#                Jan 27, 2012                  #
 ################################################
